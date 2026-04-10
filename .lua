@@ -78,6 +78,7 @@ local Values = {
     TracerThickness      = 2,
     PlatformHeight       = 14,
     ThemePreset          = "Blue",
+    GuiScale             = 1.0,
 }
 
 local Settings = {
@@ -285,6 +286,7 @@ local function loadConfig()
 end
 
 loadConfig()
+Values.GuiScale = math.clamp(tonumber(Values.GuiScale) or 1, 0.6, 1)
 
 local function clearThemeCallbacks()
     ThemeCallbacks = {}
@@ -2317,6 +2319,10 @@ local MainContainer = Create("Frame", {
     Size = UDim2.new(0, PANEL_W, 0, PANEL_H),
     Parent = ScreenGui
 })
+local MainGuiScale = Create("UIScale", {
+    Scale = math.clamp(Values.GuiScale or 1, 0.6, 1),
+    Parent = MainContainer
+})
 
 Create("Frame", {
     BackgroundColor3 = Color3.fromRGB(130, 96, 116),
@@ -3657,6 +3663,14 @@ CreateToggle(SettingsFrame, "Rainbow Mode", "RainbowMode", function(s)
         if VisualSetters.AutoColorMode then VisualSetters.AutoColorMode(false, true) end
     end
     refreshThemeMode()
+end, order) order += 1
+
+CreateSection(SettingsFrame, "UI SIZE", order) order += 1
+CreateSlider(SettingsFrame, "UI Scale", 0.6, 1.0, "GuiScale", function(v)
+    Values.GuiScale = math.clamp(v, 0.6, 1)
+    if MainGuiScale then
+        TweenService:Create(MainGuiScale, TweenInfo.new(0.15), {Scale = Values.GuiScale}):Play()
+    end
 end, order) order += 1
 
 CreateSection(SettingsFrame, "CONFIGS", order) order += 1
