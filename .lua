@@ -33,7 +33,7 @@ local Enabled = {
     SpeedBoost        = false,
     LaggerCounter     = false,
     AntiRagdoll       = false,
-    HitCircle         = false,
+    AutoMedusa        = false,
     Float             = false,
     SpeedWhileStealing= false,
     AutoSteal         = false,
@@ -160,7 +160,7 @@ local startLaggerCounter, stopLaggerCounter
 local startFloat, stopFloat
 local startSpamBat, stopSpamBat
 local startHelicopter, stopHelicopter
-local startHitCircle, stopHitCircle
+local startAutoMedusa, stopAutoMedusa
 local startBatAimbot, stopBatAimbot
 local startInfiniteJump, stopInfiniteJump
 local startAutoSteal, stopAutoSteal
@@ -283,6 +283,7 @@ local function loadConfig()
 end
 
 loadConfig()
+Enabled.HitCircle = nil
 Values.GuiScale = math.clamp(tonumber(Values.GuiScale) or 1, 0.6, 1)
 
 local function clearThemeCallbacks()
@@ -387,7 +388,7 @@ local function applyBootEffect()
         stopFloat()
         stopSpamBat()
         stopHelicopter()
-        stopHitCircle()
+        stopAutoMedusa()
         stopBatAimbot()
         stopInfiniteJump()
         stopAutoSteal()
@@ -421,7 +422,7 @@ local function applyBootEffect()
                 if key == "Float" then startFloat() end
                 if key == "SpamBat" then startSpamBat() end
                 if key == "Helicopter" then startHelicopter() end
-                if key == "HitCircle" then startHitCircle() end
+                if key == "AutoMedusa" then startAutoMedusa() end
                 if key == "BatAimbot" then startBatAimbot() end
                 if key == "InfiniteJump" then startInfiniteJump() end
                 if key == "AutoSteal" then startAutoSteal() end
@@ -1125,17 +1126,88 @@ function stopUnwalk()
     end
 end
 
--- Auto Play After Countdown
-function startHitCircle()
-    countdownAutoEnabled = true
-    local existingCountdown = workspace:FindFirstChild("Countdown")
-    if existingCountdown and existingCountdown:IsA("Sound") then
-        monitorCountdownSound(existingCountdown)
+-- Auto Medusa (K7)
+local MEDUSA_COOLDOWN = 25
+local medusaLastUsed = 0
+local medusaDebounce = false
+local medusaAnchorConns = {}
+
+local function findMedusa()
+    local char = Player.Character
+    if not char then return nil end
+    for _, tool in ipairs(char:GetChildren()) do
+        if tool:IsA("Tool") then
+            local name = tool.Name:lower()
+            if name:find("medusa") or name:find("head") or name:find("stone") then
+                return tool
+            end
+        end
     end
+    local backpack = Player:FindFirstChild("Backpack")
+    if backpack then
+        for _, tool in ipairs(backpack:GetChildren()) do
+            if tool:IsA("Tool") then
+                local name = tool.Name:lower()
+                if name:find("medusa") or name:find("head") or name:find("stone") then
+                    return tool
+                end
+            end
+        end
+    end
+    return nil
 end
-function stopHitCircle()
-    countdownAutoEnabled = false
-    countdownAutoActive = false
+
+local function useMedusaCounter()
+    if medusaDebounce then return end
+    if tick() - medusaLastUsed < MEDUSA_COOLDOWN then return end
+    local char = Player.Character
+    if not char then return end
+    medusaDebounce = true
+    local medusa = findMedusa()
+    if not medusa then
+        medusaDebounce = false
+        return
+    end
+    if medusa.Parent ~= char then
+        local hum = char:FindFirstChildOfClass("Humanoid")
+        if hum then hum:EquipTool(medusa) end
+    end
+    pcall(function() medusa:Activate() end)
+    medusaLastUsed = tick()
+    medusaDebounce = false
+end
+
+function stopAutoMedusa()
+    for _, conn in pairs(medusaAnchorConns) do
+        pcall(function() conn:Disconnect() end)
+    end
+    medusaAnchorConns = {}
+end
+
+local function setupAutoMedusa(char)
+    stopAutoMedusa()
+    if not char then return end
+    local function onAnchorChanged(part)
+        return part:GetPropertyChangedSignal("Anchored"):Connect(function()
+            if Enabled.AutoMedusa and part.Anchored and part.Transparency == 1 then
+                useMedusaCounter()
+            end
+        end)
+    end
+    for _, part in ipairs(char:GetDescendants()) do
+        if part:IsA("BasePart") then
+            table.insert(medusaAnchorConns, onAnchorChanged(part))
+        end
+    end
+    table.insert(medusaAnchorConns, char.DescendantAdded:Connect(function(part)
+        if part:IsA("BasePart") then
+            table.insert(medusaAnchorConns, onAnchorChanged(part))
+        end
+    end))
+end
+
+function startAutoMedusa()
+    setupAutoMedusa(Player.Character)
 end
 
 -- Bat Aimbot
@@ -3452,9 +3524,9 @@ CreateToggle(ScrollFrame, "Auto Left Steal", "AutoLeft", function(s)
 end, order, "AUTOLEFT") order += 1
 
 CreateSection(ScrollFrame, "COMBAT", order) order += 1
-CreateToggle(ScrollFrame, "Auto Play After Countdown", "HitCircle", function(s)
-    Enabled.HitCircle = s
-    if s then startHitCircle() else stopHitCircle() end
+CreateToggle(ScrollFrame, "Auto Medusa", "AutoMedusa", function(s)
+    Enabled.AutoMedusa = s
+    if s then startAutoMedusa() else stopAutoMedusa() end
 end, order) order += 1
 CreateToggle(ScrollFrame, "Anti Ragdoll", "AntiRagdoll", function(s)
     Enabled.AntiRagdoll = s
@@ -4133,7 +4205,7 @@ local function applySavedState()
     if Enabled.AutoSteal then startAutoSteal() else stopAutoSteal() end
     if Enabled.SpeedWhileStealing then startSpeedWhileStealing() else stopSpeedWhileStealing() end
     if Enabled.AntiRagdoll then startAntiRagdoll() else stopAntiRagdoll() end
-    if Enabled.HitCircle then startHitCircle() else stopHitCircle() end
+    if Enabled.AutoMedusa then startAutoMedusa() else stopAutoMedusa() end
     if Enabled.SpamBat then startSpamBat() else stopSpamBat() end
     if Enabled.Helicopter then startHelicopter() else stopHelicopter() end
     if Enabled.BatAimbot then
@@ -4249,7 +4321,7 @@ Player.CharacterAdded:Connect(function()
     if Enabled.AutoSteal then startAutoSteal() end
     if Enabled.SpeedWhileStealing then startSpeedWhileStealing() end
     if Enabled.AntiRagdoll then startAntiRagdoll() end
-    if Enabled.HitCircle then stopHitCircle() task.wait(0.1) startHitCircle() end
+    if Enabled.AutoMedusa then stopAutoMedusa() task.wait(0.1) startAutoMedusa() end
     if Enabled.SpamBat then startSpamBat() end
     if Enabled.Helicopter then startHelicopter() end
     if Enabled.BatAimbot then stopBatAimbot() task.wait(0.1) startBatAimbot() end
