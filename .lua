@@ -1302,28 +1302,35 @@ Player.CharacterAdded:Connect(function()
 end)
 
 -- Infinite Jump
-local jumpConn = nil
-local BOOST_POWER = 50
+local IJ_JumpConn = nil
+local IJ_FallConn = nil
 
 function startInfiniteJump()
-    if jumpConn then return end
-    jumpConn = UserInputService.JumpRequest:Connect(function()
-        local character = Player.Character
-        local rootPart = character and character:FindFirstChild("HumanoidRootPart")
-
-        if rootPart then
-            local currentVel = rootPart.AssemblyLinearVelocity
-            rootPart.AssemblyLinearVelocity = Vector3.new(currentVel.X, 0, currentVel.Z)
-            rootPart.AssemblyLinearVelocity = rootPart.AssemblyLinearVelocity + Vector3.new(0, BOOST_POWER, 0)
+    if IJ_JumpConn then IJ_JumpConn:Disconnect() end
+    if IJ_FallConn then IJ_FallConn:Disconnect() end
+    IJ_JumpConn = UserInputService.JumpRequest:Connect(function()
+        if not Enabled.InfiniteJump then return end
+        local char = Player.Character
+        if not char then return end
+        local root = char:FindFirstChild("HumanoidRootPart")
+        if root then
+            root.Velocity = Vector3.new(root.Velocity.X, 55, root.Velocity.Z)
+        end
+    end)
+    IJ_FallConn = RunService.Heartbeat:Connect(function()
+        if not Enabled.InfiniteJump then return end
+        local char = Player.Character
+        if not char then return end
+        local root = char:FindFirstChild("HumanoidRootPart")
+        if root and root.Velocity.Y < -120 then
+            root.Velocity = Vector3.new(root.Velocity.X, -120, root.Velocity.Z)
         end
     end)
 end
 
 function stopInfiniteJump()
-    if jumpConn then
-        jumpConn:Disconnect()
-        jumpConn = nil
-    end
+    if IJ_JumpConn then IJ_JumpConn:Disconnect(); IJ_JumpConn = nil end
+    if IJ_FallConn then IJ_FallConn:Disconnect(); IJ_FallConn = nil end
 end
 
 -- Optimizer + XRay
