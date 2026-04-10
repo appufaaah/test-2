@@ -1,3 +1,4 @@
+
 -- GOJO DUELS
 -- Eclipse Aura Edition - Animated Duel UI
 
@@ -31,7 +32,6 @@ if not getgenv then getgenv = function() return _G end end
 -- ============================================================
 local Enabled = {
     SpeedBoost        = false,
-    AutoFixLagBack    = false,
     LaggerCounter     = false,
     AntiRagdoll       = false,
     HitCircle         = false,
@@ -63,7 +63,6 @@ local Enabled = {
 
 local Values = {
     BoostSpeed           = 30,
-    LagBackThreshold     = 7,
     SpinSpeed            = 30,
     StealingSpeedValue   = 29,
     STEAL_RADIUS         = 20,
@@ -158,7 +157,6 @@ local refreshAllBoxButtonStates = function() end
 
 -- Forward declarations for startup/reset logic
 local startSpeedBoost, stopSpeedBoost
-local startLagBackFix, stopLagBackFix
 local startLaggerCounter, stopLaggerCounter
 local startFloat, stopFloat
 local startSpamBat, stopSpamBat
@@ -386,7 +384,6 @@ local function applyBootEffect()
 
         -- SHUTDOWN EVERYTHING
         stopSpeedBoost()
-        stopLagBackFix()
         stopLaggerCounter()
         stopFloat()
         stopSpamBat()
@@ -421,7 +418,6 @@ local function applyBootEffect()
             Enabled[key] = value
             if value == true then
                 if key == "SpeedBoost" then startSpeedBoost() end
-                if key == "AutoFixLagBack" then startLagBackFix() end
                 if key == "LaggerCounter" then startLaggerCounter() end
                 if key == "Float" then startFloat() end
                 if key == "SpamBat" then startSpamBat() end
@@ -636,78 +632,6 @@ end
 function stopSpeedBoost()
     if Connections.speed then Connections.speed:Disconnect() Connections.speed = nil end
     speedBoostPulseState = false
-end
-
-local lagBackDesiredPos = nil
-local lagBackLastPos = nil
-local lagBackLastVel = Vector3.zero
-local lagBackLastFix = 0
-
-local function isMovementIntentActive()
-    if Enabled.SpeedBoost or Enabled.Float or Enabled.AutoRight or Enabled.AutoLeft or Enabled.SpeedWhileStealing then
-        return true
-    end
-    local md = getMovementDirection()
-    return md.Magnitude > 0.2
-end
-
-function startLagBackFix()
-    if Connections.lagBackFix then return end
-    lagBackDesiredPos = nil
-    lagBackLastPos = nil
-    lagBackLastVel = Vector3.zero
-    lagBackLastFix = 0
-    Connections.lagBackFix = RunService.Heartbeat:Connect(function(dt)
-        if not Enabled.AutoFixLagBack then return end
-        local c = Player.Character
-        if not c then return end
-        local hrp = c:FindFirstChild("HumanoidRootPart")
-        if not hrp then return end
-
-        local currentPos = hrp.Position
-        local horizontalVel = Vector3.new(hrp.AssemblyLinearVelocity.X, 0, hrp.AssemblyLinearVelocity.Z)
-        local hasIntent = isMovementIntentActive()
-
-        if not hasIntent then
-            lagBackDesiredPos = currentPos
-            lagBackLastPos = currentPos
-            lagBackLastVel = horizontalVel
-            return
-        end
-
-        local previousDesired = lagBackDesiredPos
-        if not previousDesired then
-            lagBackDesiredPos = currentPos
-            lagBackLastPos = currentPos
-            lagBackLastVel = horizontalVel
-            return
-        end
-
-        local predicted = previousDesired + (lagBackLastVel * math.clamp(dt or 0.016, 0.01, 0.08))
-        local rollbackDistance = (Vector3.new(predicted.X, currentPos.Y, predicted.Z) - currentPos).Magnitude
-        if rollbackDistance >= Values.LagBackThreshold and tick() - lagBackLastFix > 0.2 then
-            lagBackLastFix = tick()
-            local corrected = predicted
-            hrp.CFrame = CFrame.new(corrected.X, currentPos.Y, corrected.Z) * CFrame.Angles(0, math.rad(hrp.Orientation.Y), 0)
-            hrp.AssemblyLinearVelocity = Vector3.new(lagBackLastVel.X, hrp.AssemblyLinearVelocity.Y, lagBackLastVel.Z)
-            currentPos = hrp.Position
-        end
-
-        lagBackDesiredPos = currentPos + horizontalVel * 0.08
-        lagBackLastPos = currentPos
-        lagBackLastVel = horizontalVel
-    end)
-end
-
-function stopLagBackFix()
-    if Connections.lagBackFix then
-        Connections.lagBackFix:Disconnect()
-        Connections.lagBackFix = nil
-    end
-    lagBackDesiredPos = nil
-    lagBackLastPos = nil
-    lagBackLastVel = Vector3.zero
-    lagBackLastFix = 0
 end
 
 -- Speed While Stealing
@@ -3471,16 +3395,9 @@ CreateToggle(ScrollFrame, "Speed Boost", "SpeedBoost", function(s)
     Enabled.SpeedBoost = s
     if s then startSpeedBoost() else stopSpeedBoost() end
 end, order, "SPEED") order += 1
-CreateToggle(ScrollFrame, "Auto Fix Lag Back", "AutoFixLagBack", function(s)
-    Enabled.AutoFixLagBack = s
-    if s then startLagBackFix() else stopLagBackFix() end
-end, order) order += 1
 CreateToggle(ScrollFrame, "Lagger Counter Mode", "LaggerCounter", function(s)
     Enabled.LaggerCounter = s
     if s then startLaggerCounter() else stopLaggerCounter() end
-end, order) order += 1
-CreateSlider(ScrollFrame, "Lag Back Distance", 3, 20, "LagBackThreshold", function(v)
-    Values.LagBackThreshold = v
 end, order) order += 1
 CreateSlider(ScrollFrame, "Boost Speed", 1, 70, "BoostSpeed", function(v)
     Values.BoostSpeed = v
@@ -4248,7 +4165,6 @@ local function applySavedState()
     refreshAllBoxButtonStates()
 
     if Enabled.SpeedBoost then startSpeedBoost() else stopSpeedBoost() end
-    if Enabled.AutoFixLagBack then startLagBackFix() else stopLagBackFix() end
     if Enabled.AutoSteal then startAutoSteal() else stopAutoSteal() end
     if Enabled.SpeedWhileStealing then startSpeedWhileStealing() else stopSpeedWhileStealing() end
     if Enabled.AntiRagdoll then startAntiRagdoll() else stopAntiRagdoll() end
@@ -4365,7 +4281,6 @@ Player.CharacterAdded:Connect(function()
     syncStealSpeedHandoff()
     if Enabled.LaggerCounter then startLaggerCounter() end
     if Enabled.SpeedBoost then startSpeedBoost() end
-    if Enabled.AutoFixLagBack then startLagBackFix() end
     if Enabled.AutoSteal then startAutoSteal() end
     if Enabled.SpeedWhileStealing then startSpeedWhileStealing() end
     if Enabled.AntiRagdoll then startAntiRagdoll() end
