@@ -61,7 +61,7 @@ local Enabled = {
 }
 
 local Values = {
-    BoostSpeed           = 30,
+    BoostSpeed           = 60,
     SpinSpeed            = 30,
     StealingSpeedValue   = 29,
     STEAL_RADIUS         = 20,
@@ -70,9 +70,9 @@ local Values = {
     GalaxyGravityPercent = 70,
     HOP_POWER            = 35,
     HOP_COOLDOWN         = 0.08,
-    BatAimbotSpeed       = 55,
+    BatAimbotSpeed       = 60,
     StealPathSpeed       = 60,
-    StealPathReturnSpeed = 30,
+    StealPathReturnSpeed = 29,
     TracerThickness      = 2,
     PlatformHeight       = 14,
     ThemePreset          = "Blue",
@@ -284,6 +284,9 @@ end
 
 loadConfig()
 Enabled.HitCircle = nil
+if Values.BoostSpeed == 30 then Values.BoostSpeed = 60 end
+if Values.BatAimbotSpeed == 55 then Values.BatAimbotSpeed = 60 end
+if Values.StealPathReturnSpeed == 30 then Values.StealPathReturnSpeed = 29 end
 Values.GuiScale = math.clamp(tonumber(Values.GuiScale) or 1, 0.6, 1)
 
 local function clearThemeCallbacks()
@@ -601,6 +604,14 @@ end
 -- FEATURE LOGIC
 -- ============================================================
 
+local function getEclipseSpeed(baseSpeed, minSpeed, maxSpeed)
+    baseSpeed = tonumber(baseSpeed) or 16
+    minSpeed = minSpeed or 1
+    maxSpeed = maxSpeed or 500
+    speedBoostPulseState = not speedBoostPulseState
+    return math.clamp(baseSpeed + (speedBoostPulseState and 1 or -1), minSpeed, maxSpeed)
+end
+
 -- Speed Boost
 function startSpeedBoost()
     if Connections.speed then return end
@@ -622,9 +633,8 @@ function startSpeedBoost()
             if not h then return end
             local md = getMovementDirection()
             if md.Magnitude > 0.1 then
-                speedBoostPulseState = not speedBoostPulseState
-                local pulsedSpeed = math.clamp(Values.BoostSpeed + (speedBoostPulseState and 1 or -1), 1, 70)
-                h.AssemblyLinearVelocity = Vector3.new(md.X * pulsedSpeed, h.AssemblyLinearVelocity.Y, md.Z * pulsedSpeed)
+                local eclipseSpeed = getEclipseSpeed(Values.BoostSpeed, 1, 90)
+                h.AssemblyLinearVelocity = Vector3.new(md.X * eclipseSpeed, h.AssemblyLinearVelocity.Y, md.Z * eclipseSpeed)
             end
         end)
     end)
@@ -646,7 +656,8 @@ function startSpeedWhileStealing()
         if not h then return end
         local md = getMovementDirection()
         if md.Magnitude > 0.1 then
-            h.AssemblyLinearVelocity = Vector3.new(md.X * Values.StealingSpeedValue, h.AssemblyLinearVelocity.Y, md.Z * Values.StealingSpeedValue)
+            local eclipseSpeed = getEclipseSpeed(Values.StealingSpeedValue, 1, 90)
+            h.AssemblyLinearVelocity = Vector3.new(md.X * eclipseSpeed, h.AssemblyLinearVelocity.Y, md.Z * eclipseSpeed)
         end
     end)
 end
@@ -1250,7 +1261,7 @@ function startBatAimbot()
             local dir = targetPoint - h.Position
             local flatDir = Vector3.new(dir.X, 0, dir.Z)
             local flatDist = flatDir.Magnitude
-            local spd = Values.BatAimbotSpeed
+            local spd = getEclipseSpeed(Values.BatAimbotSpeed, 10, 140)
             if flatDist > 1.5 then
                 local moveDir = flatDir.Unit
                 local verticalSpeed = math.clamp(dir.Y * 6, -spd, spd)
@@ -1973,12 +1984,12 @@ end
 
 local function getCarryAwarePathSpeed(pathStep, pathLength)
     if isCarryingBrainrot() then
-        return Values.StealingSpeedValue
+        return getEclipseSpeed(Values.StealingSpeedValue, 1, 90)
     end
     if pathLength and pathStep and pathStep >= math.max(2, math.ceil(pathLength * 0.6)) then
-        return Values.StealingSpeedValue
+        return getEclipseSpeed(Values.StealingSpeedValue, 1, 90)
     end
-    return Values.StealPathSpeed
+    return getEclipseSpeed(Values.StealPathSpeed, 1, 120)
 end
 
 local function stealMoveToPoint(hrp, current, nextPoint, speed, runId)
@@ -2039,7 +2050,7 @@ local function stealRunPath(path, originPosition, runId)
         updateStealPathProgress("RETURNING TO BASE", completedSteps / totalSteps)
         local nextP = path[i - 1] and path[i - 1].pos or originPosition
         stealMoveToPoint(hrp, path[i].pos, nextP, function()
-            return Values.StealPathReturnSpeed
+            return getEclipseSpeed(Values.StealPathReturnSpeed, 1, 90)
         end, runId)
         task.wait(0.03)
     end
@@ -2048,7 +2059,7 @@ local function stealRunPath(path, originPosition, runId)
         completedSteps += 1
         updateStealPathProgress("RESTORING ORIGINAL POSITION", completedSteps / totalSteps)
         stealMoveToPoint(hrp, originPosition, nil, function()
-            return Values.StealPathReturnSpeed
+            return getEclipseSpeed(Values.StealPathReturnSpeed, 1, 90)
         end, runId)
     end
 end
