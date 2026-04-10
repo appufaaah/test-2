@@ -3925,8 +3925,8 @@ end
 
 local boxPanel = Create("Frame", {
     BackgroundTransparency = 1,
-    Position = UDim2.new(1, -228, 0.5, -158),
-    Size = UDim2.new(0, 204, 0, 316),
+    Position = UDim2.new(1, -190, 0.5, -136),
+    Size = UDim2.new(0, 172, 0, 272),
     BorderSizePixel = 0,
     Visible = Enabled.MobileButtons and Enabled.BoxMobileButtons,
     ZIndex = 24,
@@ -3959,9 +3959,9 @@ end
 
 local function CreateBoxMobileButton(labelText, enabledKey, col, row, onToggle, isToggle)
     if isToggle == nil then isToggle = true end
-    local cellW, cellH, gap = 90, 90, 14
+    local cellW, cellH, gap = 76, 76, 10
     local box = Create("TextButton", {
-        BackgroundColor3 = Color3.fromRGB(246, 247, 242),
+        BackgroundColor3 = Color3.fromRGB(13, 20, 17),
         Position = UDim2.new(0, (col - 1) * (cellW + gap), 0, (row - 1) * (cellH + gap)),
         Size = UDim2.new(0, cellW, 0, cellH),
         BorderSizePixel = 0,
@@ -3970,35 +3970,35 @@ local function CreateBoxMobileButton(labelText, enabledKey, col, row, onToggle, 
         ZIndex = 26,
         Parent = boxGrid
     }, {
-        Create("UICorner", {CornerRadius = UDim.new(0, 14)}),
+        Create("UICorner", {CornerRadius = UDim.new(0, 12)}),
         Create("UIStroke", {Color = SOFT_PINK, Thickness = 1.6, Transparency = 0.18})
     })
     local stroke = box:FindFirstChildOfClass("UIStroke")
     local buttonGlow = Create("Frame", {
         BackgroundColor3 = SOFT_PINK,
         BackgroundTransparency = 0.9,
-        Position = UDim2.new(0, -3, 0, -3),
-        Size = UDim2.new(1, 6, 1, 6),
+        Position = UDim2.new(0, -2, 0, -2),
+        Size = UDim2.new(1, 4, 1, 4),
         BorderSizePixel = 0,
         ZIndex = 25,
         Parent = box
-    }, {Create("UICorner", {CornerRadius = UDim.new(0, 16)})})
+    }, {Create("UICorner", {CornerRadius = UDim.new(0, 14)})})
     local title = Create("TextLabel", {
         BackgroundTransparency = 1,
-        Position = UDim2.new(0, 8, 0.5, -20),
-        Size = UDim2.new(1, -16, 0, 40),
+        Position = UDim2.new(0, 6, 0.5, -18),
+        Size = UDim2.new(1, -12, 0, 36),
         Font = Enum.Font.GothamBlack,
         Text = labelText,
         TextColor3 = SOFT_PINK,
-        TextSize = 12,
+        TextSize = 10,
         TextWrapped = true,
         ZIndex = 27,
         Parent = box
     })
     local mode = Create("TextLabel", {
         BackgroundTransparency = 1,
-        Position = UDim2.new(0, 8, 1, -22),
-        Size = UDim2.new(1, -16, 0, 12),
+        Position = UDim2.new(0, 6, 1, -18),
+        Size = UDim2.new(1, -12, 0, 10),
         Font = Enum.Font.GothamBold,
         Text = isToggle and "MODE" or "TAP",
         TextColor3 = SHELL_SUB,
@@ -4009,8 +4009,8 @@ local function CreateBoxMobileButton(labelText, enabledKey, col, row, onToggle, 
     local statusBar = Create("Frame", {
         BackgroundColor3 = SOFT_PINK,
         BackgroundTransparency = isToggle and 0.72 or 0.45,
-        Position = UDim2.new(0.5, -18, 0, 13),
-        Size = UDim2.new(0, 36, 0, 4),
+        Position = UDim2.new(0.5, -15, 0, 10),
+        Size = UDim2.new(0, 30, 0, 4),
         BorderSizePixel = 0,
         ZIndex = 27,
         Parent = box
@@ -4021,7 +4021,7 @@ local function CreateBoxMobileButton(labelText, enabledKey, col, row, onToggle, 
         buttonGlow.BackgroundColor3 = SOFT_PINK
         if isToggle then
             TweenService:Create(box, TweenInfo.new(0.15), {
-                BackgroundColor3 = state and SOFT_PINK_2 or Color3.fromRGB(246, 247, 242)
+                BackgroundColor3 = state and Color3.fromRGB(22, 34, 28) or Color3.fromRGB(13, 20, 17)
             }):Play()
             if stroke then
                 TweenService:Create(stroke, TweenInfo.new(0.15), {
@@ -4077,10 +4077,10 @@ local function CreateBoxMobileButton(labelText, enabledKey, col, row, onToggle, 
             onToggle(nextState)
         else
             onToggle()
-            TweenService:Create(box, TweenInfo.new(0.08), {BackgroundColor3 = SOFT_PINK_2}):Play()
+            TweenService:Create(box, TweenInfo.new(0.08), {BackgroundColor3 = Color3.fromRGB(22, 34, 28)}):Play()
             task.delay(0.18, function()
                 if box and box.Parent then
-                    TweenService:Create(box, TweenInfo.new(0.12), {BackgroundColor3 = Color3.fromRGB(246, 247, 242)}):Play()
+                    TweenService:Create(box, TweenInfo.new(0.12), {BackgroundColor3 = Color3.fromRGB(13, 20, 17)}):Play()
                 end
             end)
         end
@@ -4142,13 +4142,7 @@ CreateBoxMobileButton("AUTO\nRIGHT", "AutoRight", 2, 2, function(state)
     end
 end)
 
-CreateBoxMobileButton("SLOW\nDOWN", "LaggerCounter", 1, 3, function(state)
-    Enabled.LaggerCounter = state
-    if VisualSetters.LaggerCounter then VisualSetters.LaggerCounter(state, true) end
-    if state then startLaggerCounter() else stopLaggerCounter() end
-end)
-
-CreateBoxMobileButton("TP\nDOWN", "TPDown", 2, 3, function()
+CreateBoxMobileButton("TP\nDOWN", "TPDown", 1, 3, function()
     teleportDownNow()
 end, false)
 
