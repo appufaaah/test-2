@@ -55,6 +55,7 @@ local Enabled = {
     TPRight           = false,
     Tracers           = false,
     MobileButtons     = true,
+    BoxMobileButtons  = false,
     Platform          = false,
     RainbowMode       = false,
     AutoColorMode     = false,
@@ -149,6 +150,10 @@ local LEGACY_CONFIG_KEY = "ZERO_HUB_CONFIG_V1"
 local floatButtonPositions = {}
 local floatButtonReferences = {}
 local mobileButtonFrames = {}
+local boxMobileButtonFrames = {}
+local boxMobileButtonReferences = {}
+local refreshBoxButtonState = function() end
+local refreshAllBoxButtonStates = function() end
 
 -- Forward declarations for startup/reset logic
 local startSpeedBoost, stopSpeedBoost
@@ -3031,6 +3036,9 @@ local function CreateToggle(parent, labelText, enabledKey, callback, order, keyb
             Position = isOn and UDim2.new(1,-(DOT_S+3),0.5,-DOT_S/2) or UDim2.new(0,3,0.5,-DOT_S/2)
         }):Play()
         label.TextColor3 = SHELL_TEXT
+        if boxMobileButtonReferences[enabledKey] then
+            boxMobileButtonReferences[enabledKey](isOn)
+        end
         if not skipCb then callback(isOn) end
     end
     VisualSetters[enabledKey] = setVisual
@@ -3737,14 +3745,24 @@ CreateToggle(MobileFrame, "Show Mobile Buttons", "MobileButtons", function(s)
     Enabled.MobileButtons = s
     if setMobileButtonsVisible then setMobileButtonsVisible(s) end
 end, order) order += 1
+CreateToggle(MobileFrame, "Use Box Mobile Buttons", "BoxMobileButtons", function(s)
+    Enabled.BoxMobileButtons = s
+    if setMobileButtonsVisible then setMobileButtonsVisible(Enabled.MobileButtons) end
+end, order) order += 1
 CreateToggle(MobileFrame, "Lock Mobile Buttons", "LockFloatPosition", function(s)
     Enabled.LockFloatPosition = s
 end, order) order += 1
 
 setMobileButtonsVisible = function(state)
+    refreshAllBoxButtonStates()
     for _, buttonFrame in ipairs(mobileButtonFrames) do
         if buttonFrame and buttonFrame.Parent then
-            buttonFrame.Visible = state
+            buttonFrame.Visible = state and not Enabled.BoxMobileButtons
+        end
+    end
+    for _, buttonFrame in ipairs(boxMobileButtonFrames) do
+        if buttonFrame and buttonFrame.Parent then
+            buttonFrame.Visible = state and Enabled.BoxMobileButtons
         end
     end
 end
@@ -3905,6 +3923,219 @@ local function CreateFloatingButton(labelText, icon, defaultPos, enabledKey, onT
     return updateVisual
 end
 
+local boxPanel = Create("Frame", {
+    BackgroundColor3 = Color3.fromRGB(5, 9, 8),
+    BackgroundTransparency = 0.06,
+    Position = UDim2.new(1, -184, 0.5, -192),
+    Size = UDim2.new(0, 168, 0, 384),
+    BorderSizePixel = 0,
+    Visible = Enabled.MobileButtons and Enabled.BoxMobileButtons,
+    ZIndex = 24,
+    Parent = ScreenGui
+}, {
+    Create("UICorner", {CornerRadius = UDim.new(0, 16)}),
+    Create("UIStroke", {Color = SOFT_PINK, Thickness = 2, Transparency = 0.12})
+})
+table.insert(boxMobileButtonFrames, boxPanel)
+
+local boxGrid = Create("Frame", {
+    BackgroundTransparency = 1,
+    Position = UDim2.new(0, 10, 0, 10),
+    Size = UDim2.new(1, -20, 1, -20),
+    ZIndex = 25,
+    Parent = boxPanel
+})
+
+refreshBoxButtonState = function(enabledKey)
+    local updater = boxMobileButtonReferences[enabledKey]
+    if updater then
+        updater(Enabled[enabledKey] or false)
+    end
+end
+
+refreshAllBoxButtonStates = function()
+    for enabledKey, updater in pairs(boxMobileButtonReferences) do
+        if updater then
+            updater(Enabled[enabledKey] or false)
+        end
+    end
+end
+
+local function CreateBoxMobileButton(labelText, enabledKey, col, row, onToggle, isToggle)
+    if isToggle == nil then isToggle = true end
+    local cellW, cellH, gap = 68, 86, 8
+    local box = Create("TextButton", {
+        BackgroundColor3 = Color3.fromRGB(8, 12, 14),
+        Position = UDim2.new(0, (col - 1) * (cellW + gap), 0, (row - 1) * (cellH + gap)),
+        Size = UDim2.new(0, cellW, 0, cellH),
+        BorderSizePixel = 0,
+        AutoButtonColor = false,
+        Text = "",
+        ZIndex = 26,
+        Parent = boxGrid
+    }, {
+        Create("UICorner", {CornerRadius = UDim.new(0, 10)}),
+        Create("UIStroke", {Color = Color3.fromRGB(18, 26, 28), Thickness = 1.4, Transparency = 0.25})
+    })
+    local stroke = box:FindFirstChildOfClass("UIStroke")
+    local title = Create("TextLabel", {
+        BackgroundTransparency = 1,
+        Position = UDim2.new(0, 4, 0, 14),
+        Size = UDim2.new(1, -8, 0, 18),
+        Font = Enum.Font.GothamBlack,
+        Text = labelText,
+        TextColor3 = SHELL_TEXT,
+        TextSize = 11,
+        TextWrapped = true,
+        ZIndex = 27,
+        Parent = box
+    })
+    local mode = Create("TextLabel", {
+        BackgroundTransparency = 1,
+        Position = UDim2.new(0, 4, 0, 40),
+        Size = UDim2.new(1, -8, 0, 12),
+        Font = Enum.Font.GothamBold,
+        Text = "MODE",
+        TextColor3 = SHELL_SUB,
+        TextSize = 7,
+        ZIndex = 27,
+        Parent = box
+    })
+    local ring = Create("Frame", {
+        BackgroundColor3 = Color3.fromRGB(5, 8, 9),
+        Position = UDim2.new(0.5, -9, 1, -28),
+        Size = UDim2.new(0, 18, 0, 18),
+        BorderSizePixel = 0,
+        ZIndex = 27,
+        Parent = box
+    }, {
+        Create("UICorner", {CornerRadius = UDim.new(1, 0)}),
+        Create("UIStroke", {Color = Color3.fromRGB(238, 238, 238), Thickness = 2})
+    })
+    local ringStroke = ring:FindFirstChildOfClass("UIStroke")
+    local function updateVisual(state)
+        if isToggle then
+            TweenService:Create(box, TweenInfo.new(0.15), {
+                BackgroundColor3 = state and Color3.fromRGB(12, 22, 18) or Color3.fromRGB(8, 12, 14)
+            }):Play()
+            if stroke then
+                TweenService:Create(stroke, TweenInfo.new(0.15), {
+                    Color = state and SOFT_PINK or Color3.fromRGB(18, 26, 28),
+                    Transparency = state and 0.02 or 0.25
+                }):Play()
+            end
+            if ringStroke then
+                TweenService:Create(ringStroke, TweenInfo.new(0.15), {
+                    Color = state and SOFT_PINK or Color3.fromRGB(238, 238, 238)
+                }):Play()
+            end
+            ring.BackgroundColor3 = state and SOFT_PINK or Color3.fromRGB(5, 8, 9)
+        end
+    end
+    boxMobileButtonReferences[enabledKey] = updateVisual
+    registerThemeCallback(function(themePalette)
+        syncThemeLocals(themePalette)
+        title.TextColor3 = SHELL_TEXT
+        mode.TextColor3 = SHELL_SUB
+        if boxPanel and boxPanel.Parent then
+            local panelStroke = boxPanel:FindFirstChildOfClass("UIStroke")
+            if panelStroke then panelStroke.Color = SOFT_PINK end
+        end
+        updateVisual(Enabled[enabledKey] or false)
+    end)
+    updateVisual(Enabled[enabledKey] or false)
+    box.MouseButton1Click:Connect(function()
+        if isToggle then
+            local nextState = not Enabled[enabledKey]
+            Enabled[enabledKey] = nextState
+            updateVisual(nextState)
+            onToggle(nextState)
+        else
+            onToggle()
+            TweenService:Create(box, TweenInfo.new(0.08), {BackgroundColor3 = Color3.fromRGB(12, 22, 18)}):Play()
+            task.delay(0.18, function()
+                if box and box.Parent then
+                    TweenService:Create(box, TweenInfo.new(0.12), {BackgroundColor3 = Color3.fromRGB(8, 12, 14)}):Play()
+                end
+            end)
+        end
+    end)
+    return updateVisual
+end
+
+CreateBoxMobileButton("BAT", "BatAimbot", 1, 1, function(state)
+    Enabled.BatAimbot = state
+    if VisualSetters.BatAimbot then VisualSetters.BatAimbot(state, true) end
+    if floatButtonReferences.BatAimbot then floatButtonReferences.BatAimbot(state) end
+    if state then
+        enableSpamBatFromAimbot()
+        startBatAimbot()
+    else
+        stopBatAimbot()
+        disableSpamBatFromAimbot()
+    end
+end)
+
+CreateBoxMobileButton("CARRY", "SpeedWhileStealing", 2, 1, function(state)
+    Enabled.SpeedWhileStealing = state
+    if VisualSetters.SpeedWhileStealing then VisualSetters.SpeedWhileStealing(state, true) end
+    if state then startSpeedWhileStealing() else stopSpeedWhileStealing() end
+end)
+
+CreateBoxMobileButton("LAG", "LaggerCounter", 1, 2, function(state)
+    Enabled.LaggerCounter = state
+    if VisualSetters.LaggerCounter then VisualSetters.LaggerCounter(state, true) end
+    if state then startLaggerCounter() else stopLaggerCounter() end
+end)
+
+CreateBoxMobileButton("FLOAT", "Float", 2, 2, function(state)
+    Enabled.Float = state
+    if VisualSetters.Float then VisualSetters.Float(state, true) end
+    if floatButtonReferences.Float then floatButtonReferences.Float(state) end
+    if state then startFloat() else stopFloat() end
+end)
+
+CreateBoxMobileButton("FULL AUTO L", "AutoLeft", 1, 3, function(state)
+    Enabled.AutoLeft = state
+    if VisualSetters.AutoLeft then VisualSetters.AutoLeft(state, true) end
+    if floatButtonReferences.AutoLeft then floatButtonReferences.AutoLeft(state) end
+    refreshBoxButtonState("AutoLeft")
+    if state then
+        countdownPreferredSide = "left"
+        Enabled.AutoRight = false
+        if VisualSetters.AutoRight then VisualSetters.AutoRight(false, true) end
+        if floatButtonReferences.AutoRight then floatButtonReferences.AutoRight(false) end
+        refreshBoxButtonState("AutoRight")
+        stopStealPath()
+        startStealPath(stealPath_Left)
+    else
+        stopStealPath()
+    end
+end)
+
+CreateBoxMobileButton("FULL AUTO R", "AutoRight", 2, 3, function(state)
+    Enabled.AutoRight = state
+    if VisualSetters.AutoRight then VisualSetters.AutoRight(state, true) end
+    if floatButtonReferences.AutoRight then floatButtonReferences.AutoRight(state) end
+    refreshBoxButtonState("AutoRight")
+    if state then
+        countdownPreferredSide = "right"
+        Enabled.AutoLeft = false
+        if VisualSetters.AutoLeft then VisualSetters.AutoLeft(false, true) end
+        if floatButtonReferences.AutoLeft then floatButtonReferences.AutoLeft(false) end
+        refreshBoxButtonState("AutoLeft")
+        stopStealPath()
+        startStealPath(stealPath_Right)
+    else
+        stopStealPath()
+    end
+end)
+
+CreateBoxMobileButton("DROP", "Drop", 1, 4, function()
+    startWalkFling()
+    task.delay(0.4, stopWalkFling)
+end, false)
+
 floatButtonReferences.AutoRight = CreateFloatingButton("Auto Right", "⚙️", UDim2.new(1, -144, 0.5, -64), "AutoRight", function(state)
     if state then
         countdownPreferredSide = "right"
@@ -3990,6 +4221,7 @@ local function applySavedState()
     if floatButtonReferences.Float then floatButtonReferences.Float(Enabled.Float or false) end
     if floatButtonReferences.Platform then floatButtonReferences.Platform(Enabled.Platform or false) end
     if floatButtonReferences.BatAimbot then floatButtonReferences.BatAimbot(Enabled.BatAimbot or false) end
+    refreshAllBoxButtonStates()
 
     if Enabled.SpeedBoost then startSpeedBoost() else stopSpeedBoost() end
     if Enabled.AutoFixLagBack then startLagBackFix() else stopLagBackFix() end
