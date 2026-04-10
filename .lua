@@ -1,4 +1,3 @@
-
 -- GOJO DUELS
 -- Eclipse Aura Edition - Animated Duel UI
 
@@ -940,10 +939,7 @@ end
 
 -- Float
 local floatConn = nil
-local FLOAT_TARGET_HEIGHT = 10
-local FLOAT_DOWN_SEARCH = 2048
-local FLOAT_SURFACE_CLEARANCE = 3
-local floatBasePosition = nil
+local floatHeight = 9.5
 local harderHitAnimConn = nil
 local originalHitAnims = nil
 local HarderHitAnims = {
@@ -957,26 +953,6 @@ local HarderHitAnims = {
     swim = "rbxassetid://116936326516985",
     swimidle = "rbxassetid://116936326516985",
 }
-local function setRootPosition(hrp, targetPosition)
-    hrp.CFrame = CFrame.new(targetPosition.X, targetPosition.Y, targetPosition.Z) * CFrame.Angles(0, math.rad(hrp.Orientation.Y), 0)
-end
-
-local function getSafeDownPosition(origin, maxDrop, clearance)
-    clearance = clearance or FLOAT_SURFACE_CLEARANCE
-    local rayParams = RaycastParams.new()
-    rayParams.FilterType = Enum.RaycastFilterType.Blacklist
-    local ignoreList = {Player.Character}
-    if platformPart then
-        table.insert(ignoreList, platformPart)
-    end
-    rayParams.FilterDescendantsInstances = ignoreList
-    local result = workspace:Raycast(origin, Vector3.new(0, -maxDrop, 0), rayParams)
-    if result then
-        return Vector3.new(origin.X, result.Position.Y + clearance, origin.Z)
-    end
-    return origin - Vector3.new(0, maxDrop, 0)
-end
-
 local function teleportDownNow(dropDistance)
     local wasFloating = Enabled.Float
     if wasFloating then stopFloat() end
@@ -985,7 +961,9 @@ local function teleportDownNow(dropDistance)
             local c = Player.Character; if not c then return end
             local hrp = c:FindFirstChild("HumanoidRootPart"); if not hrp then return end
             local hum = c:FindFirstChildOfClass("Humanoid"); if not hum then return end
-            local rp = RaycastParams.new(); rp.FilterDescendantsInstances = {c}; rp.FilterType = Enum.RaycastFilterType.Exclude
+            local rp = RaycastParams.new()
+            rp.FilterDescendantsInstances = {c}
+            rp.FilterType = Enum.RaycastFilterType.Exclude
             local hit = workspace:Raycast(hrp.Position, Vector3.new(0, -(dropDistance or 500), 0), rp)
             if hit then
                 hrp.AssemblyLinearVelocity = Vector3.zero
@@ -1012,59 +990,39 @@ end
 syncStealSettings()
 
 function startFloat()
-    if Enabled.Platform then
-        Enabled.Platform = false
-        if VisualSetters.Platform then VisualSetters.Platform(false, true) end
-        if floatButtonReferences.Platform then floatButtonReferences.Platform(false) end
-        stopPlatform()
-    end
     if floatConn then
         floatConn:Disconnect()
         floatConn = nil
     end
-    local c = Player.Character
-    if not c then return end
-    local hrp = c:FindFirstChild("HumanoidRootPart")
-    if not hrp then return end
-    local originalPos = hrp.Position
-    local hum = c:FindFirstChildOfClass("Humanoid")
-    floatBasePosition = getSafeDownPosition(originalPos, FLOAT_DOWN_SEARCH, FLOAT_SURFACE_CLEARANCE)
-    setRootPosition(hrp, floatBasePosition)
-    local floatStartTime = tick()
     floatConn = RunService.Heartbeat:Connect(function()
         if not Enabled.Float then return end
-        local c2 = Player.Character
-        if not c2 then return end
-        local h = c2:FindFirstChild("HumanoidRootPart")
-        if not h then return end
-        local hum2 = c2:FindFirstChildOfClass("Humanoid")
-        local elapsed = tick() - floatStartTime
-        local riseAlpha = math.clamp(elapsed / 0.28, 0, 1)
-        local hoverBaseY = (floatBasePosition and floatBasePosition.Y or h.Position.Y) + (FLOAT_TARGET_HEIGHT * riseAlpha)
-        local bobOffset = math.sin(elapsed * 2.8) * 0.65
-        local targetY = hoverBaseY + bobOffset
-        local vertical = math.clamp((targetY - h.Position.Y) * 10, -24, 32)
-        local moveDir = hum2 and hum2.MoveDirection or Vector3.zero
-        local horizSpeed = hum2 and math.max(hum2.WalkSpeed, 16) or (hum and math.max(hum.WalkSpeed, 16) or 16)
-        local horizVelocity = moveDir.Magnitude > 0.05 and (moveDir.Unit * horizSpeed) or Vector3.zero
-        h.AssemblyLinearVelocity = Vector3.new(horizVelocity.X, vertical, horizVelocity.Z)
+        local char = Player.Character
+        if not char then return end
+        local root = char:FindFirstChild("HumanoidRootPart")
+        if not root then return end
+        local rp = RaycastParams.new()
+        rp.FilterDescendantsInstances = {char}
+        rp.FilterType = Enum.RaycastFilterType.Exclude
+        local rr = workspace:Raycast(root.Position, Vector3.new(0, -200, 0), rp)
+        if rr then
+            local diff = (rr.Position.Y + floatHeight) - root.Position.Y
+            if math.abs(diff) > 0.3 then
+                root.AssemblyLinearVelocity = Vector3.new(root.AssemblyLinearVelocity.X, diff * 15, root.AssemblyLinearVelocity.Z)
+            else
+                root.AssemblyLinearVelocity = Vector3.new(root.AssemblyLinearVelocity.X, 0, root.AssemblyLinearVelocity.Z)
+            end
+        end
     end)
 end
 function stopFloat()
-    local shouldResetPosition = floatConn ~= nil or floatBasePosition ~= nil or Enabled.Float
     if floatConn then floatConn:Disconnect() floatConn = nil end
     local c = Player.Character
     if c then
-        local hrp = c:FindFirstChild("HumanoidRootPart")
-        if hrp then
-            if shouldResetPosition then
-                local resetPosition = floatBasePosition or getSafeDownPosition(hrp.Position, FLOAT_DOWN_SEARCH, FLOAT_SURFACE_CLEARANCE)
-                setRootPosition(hrp, resetPosition)
-            end
-            hrp.AssemblyLinearVelocity = Vector3.zero
+        local root = c:FindFirstChild("HumanoidRootPart")
+        if root then
+            root.AssemblyLinearVelocity = Vector3.new(root.AssemblyLinearVelocity.X, 0, root.AssemblyLinearVelocity.Z)
         end
     end
-    floatBasePosition = nil
 end
 
 -- Harder Hit Anim (replaces Platform)
