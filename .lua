@@ -53,6 +53,7 @@ local Enabled = {
     TPLeft            = false,
     TPRight           = false,
     Tracers           = false,
+    WaypointESP       = false,
     MobileButtons     = true,
     BoxMobileButtons  = false,
     CountdownAutoPlay = false,
@@ -125,6 +126,7 @@ local wpOffsets = {
     Right = {Vector3.zero, Vector3.zero, Vector3.zero},
 }
 local waypointRowBindings = {}
+local refreshWaypointESPVisuals = function() end
 local THEME_PRESETS = {
     Blue = {
         accent = Color3.fromRGB(100, 180, 255),
@@ -178,6 +180,7 @@ local enableXRay, disableXRay
 local startGalaxyMode, stopGalaxyMode
 local startSpeedWhileStealing, stopSpeedWhileStealing
 local startStealPath, stopStealPath
+local startWaypointESP, stopWaypointESP
 local startTracers, stopTracers
 local startPlatform, stopPlatform
 local setMobileButtonsVisible
@@ -444,6 +447,7 @@ local function applyBootEffect()
         stopGalaxyMode()
         stopSpeedWhileStealing()
         stopStealPath()
+        stopWaypointESP()
         stopTracers()
         stopPlatform()
 
@@ -476,6 +480,7 @@ local function applyBootEffect()
                 if key == "OptimizerXRay" then enableOptimizer() enableXRay() end
                 if key == "GalaxyMode" then startGalaxyMode() end
                 if key == "SpeedWhileStealing" then startSpeedWhileStealing() end
+                if key == "WaypointESP" then startWaypointESP() end
                 if key == "Tracers" then startTracers() end
                 if key == "Platform" then startPlatform() end
 
@@ -2026,6 +2031,7 @@ local function rebuildLazyWaypointPositions()
             lazyAutoPlayWaypoints[groupName][index] = basePoint + (wpOffsets[groupName][index] or Vector3.zero)
         end
     end
+    refreshWaypointESPVisuals()
 end
 
 local function formatWaypointNumber(value)
@@ -2249,6 +2255,71 @@ end
 function stopStealPath()
     stopLazyAutoPlaySide("left")
     stopLazyAutoPlaySide("right")
+end
+
+local waypointESPFolder = nil
+
+refreshWaypointESPVisuals = function()
+    if waypointESPFolder then
+        waypointESPFolder:Destroy()
+        waypointESPFolder = nil
+    end
+    if not Enabled.WaypointESP then return end
+
+    waypointESPFolder = Instance.new("Folder")
+    waypointESPFolder.Name = "F7WaypointESP"
+    waypointESPFolder.Parent = workspace
+
+    local pointColors = {
+        Left = PURPLE_LIGHT,
+        Right = STARLIGHT,
+    }
+
+    for groupName, points in pairs(lazyAutoPlayWaypoints) do
+        for index, point in ipairs(points) do
+            local anchor = Instance.new("Part")
+            anchor.Name = groupName .. "Waypoint" .. tostring(index)
+            anchor.Anchored = true
+            anchor.CanCollide = false
+            anchor.CanQuery = false
+            anchor.CanTouch = false
+            anchor.Material = Enum.Material.Neon
+            anchor.Shape = Enum.PartType.Ball
+            anchor.Size = Vector3.new(0.9, 0.9, 0.9)
+            anchor.Color = pointColors[groupName] or SOFT_PINK
+            anchor.Transparency = 0.15
+            anchor.Position = point
+            anchor.Parent = waypointESPFolder
+
+            local billboard = Instance.new("BillboardGui")
+            billboard.Name = "Label"
+            billboard.Size = UDim2.new(0, 90, 0, 24)
+            billboard.StudsOffset = Vector3.new(0, 1.4, 0)
+            billboard.AlwaysOnTop = true
+            billboard.Parent = anchor
+
+            local label = Instance.new("TextLabel")
+            label.BackgroundTransparency = 1
+            label.Size = UDim2.new(1, 0, 1, 0)
+            label.Font = Enum.Font.GothamBold
+            label.TextSize = 11
+            label.TextStrokeTransparency = 0.35
+            label.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
+            label.TextColor3 = Color3.fromRGB(255, 255, 255)
+            label.Text = string.format("%s%d", groupName == "Left" and "L" or "R", index)
+            label.Parent = billboard
+        end
+    end
+end
+
+function startWaypointESP()
+    Enabled.WaypointESP = true
+    refreshWaypointESPVisuals()
+end
+
+function stopWaypointESP()
+    Enabled.WaypointESP = false
+    refreshWaypointESPVisuals()
 end
 
 -- ============================================================
@@ -3887,6 +3958,10 @@ CreateToggle(AutoPlayFrame, "Auto Play After Countdown", "CountdownAutoPlay", fu
     Enabled.CountdownAutoPlay = s
     countdownAutoEnabled = s
 end, order) order += 1
+CreateToggle(AutoPlayFrame, "ESP All Points", "WaypointESP", function(s)
+    Enabled.WaypointESP = s
+    if s then startWaypointESP() else stopWaypointESP() end
+end, order) order += 1
 CreateSlider(AutoPlayFrame, "Auto Play Speed", 20, 80, "StealPathSpeed", function(v)
     Values.StealPathSpeed = v
     STEAL_PATH_VELOCITY_SPEED = v
@@ -4633,6 +4708,7 @@ local function applySavedState()
     if Enabled.Vibrance then enablePurpleMoon() else disablePurpleMoon() end
     if Enabled.OptimizerXRay then enableOptimizer() enableXRay() else disableOptimizer() disableXRay() end
     if Enabled.GalaxyMode then startGalaxyMode() else stopGalaxyMode() end
+    if Enabled.WaypointESP then startWaypointESP() else stopWaypointESP() end
     if Enabled.Tracers then startTracers() else stopTracers() end
     if Enabled.Platform then startPlatform() else stopPlatform() end
     if Enabled.AutoRight then stopStealPath() startStealPath(stealPath_Right) end
@@ -4739,6 +4815,7 @@ Player.CharacterAdded:Connect(function()
     if Enabled.Helicopter then startHelicopter() end
     if Enabled.BatAimbot then stopBatAimbot() task.wait(0.1) startBatAimbot() end
     if Enabled.InfiniteJump then stopInfiniteJump() task.wait(0.1) startInfiniteJump() end
+    if Enabled.WaypointESP then stopWaypointESP() task.wait(0.1) startWaypointESP() end
     if Enabled.Tracers then startTracers() end
     if Enabled.Platform then stopPlatform() task.wait(0.1) startPlatform() end
 end)
