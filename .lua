@@ -3817,61 +3817,66 @@ CreateToggle(MobileFrame, "Lock Mobile Buttons", "LockFloatPosition", function(s
     Enabled.LockFloatPosition = s
 end, order) order += 1
 
-CreateSection(AutoPlayFrame, "ZEPHRON AUTO PLAY", order) order += 1
-CreateSlider(AutoPlayFrame, "Auto Left Speed", 1, 100, "AutoLeftSpeed", function(v)
-    Values.AutoLeftSpeed = v
-    if Enabled.AutoLeft then
-        STEAL_PATH_VELOCITY_SPEED = v
-    end
-end, order) order += 1
-CreateSlider(AutoPlayFrame, "Auto Right Speed", 1, 100, "AutoRightSpeed", function(v)
-    Values.AutoRightSpeed = v
-    if Enabled.AutoRight then
-        STEAL_PATH_VELOCITY_SPEED = v
-    end
-end, order) order += 1
-CreateToggle(AutoPlayFrame, "Auto Play Left Sequence", "AutoLeft", function(s)
-    Enabled.AutoLeft = s
-    if s then
-        countdownPreferredSide = "left"
-        Enabled.AutoRight = false
-        if VisualSetters.AutoRight then VisualSetters.AutoRight(false, true) end
-        if floatButtonReferences.AutoRight then floatButtonReferences.AutoRight(false) end
-        refreshAllBoxButtonStates()
-        stopStealPath()
-        startStealPath(stealPath_Left)
-    else
-        stopStealPath()
-    end
-end, order, "AUTOLEFT") order += 1
-CreateToggle(AutoPlayFrame, "Auto Play Right Sequence", "AutoRight", function(s)
-    Enabled.AutoRight = s
-    if s then
-        countdownPreferredSide = "right"
-        Enabled.AutoLeft = false
-        if VisualSetters.AutoLeft then VisualSetters.AutoLeft(false, true) end
-        if floatButtonReferences.AutoLeft then floatButtonReferences.AutoLeft(false) end
-        refreshAllBoxButtonStates()
-        stopStealPath()
-        startStealPath(stealPath_Right)
-    else
-        stopStealPath()
-    end
-end, order, "AUTORIGHT") order += 1
-CreateSlider(AutoPlayFrame, "Base Exit Distance", 0, 30, "AutoPlayExitDist", function(v)
-    Values.AutoPlayExitDist = v
-end, order) order += 1
-CreateSlider(AutoPlayFrame, "Auto Play Return Speed", 1, 100, "AutoPlayReturnSpeed", function(v)
-    Values.AutoPlayReturnSpeed = v
-    STEAL_PATH_SECOND_SPEED = v
-end, order) order += 1
-CreateSlider(AutoPlayFrame, "Auto Play Wait (Secs)", 0.05, 10, "AutoPlayWaitTime", function(v)
-    Values.AutoPlayWaitTime = v
-end, order) order += 1
-CreateToggle(AutoPlayFrame, "Auto Play After Countdown", "CountdownAutoPlay", function(s)
-    Enabled.CountdownAutoPlay = s
-    countdownAutoEnabled = s
-end, order) order += 1
+local autoPlayUiOk, autoPlayUiErr = pcall(function()
+    CreateSection(AutoPlayFrame, "ZEPHRON AUTO PLAY", order) order += 1
+    CreateSlider(AutoPlayFrame, "Auto Left Speed", 1, 100, "AutoLeftSpeed", function(v)
+        Values.AutoLeftSpeed = v
+        if Enabled.AutoLeft then
+            STEAL_PATH_VELOCITY_SPEED = v
+        end
+    end, order) order += 1
+    CreateSlider(AutoPlayFrame, "Auto Right Speed", 1, 100, "AutoRightSpeed", function(v)
+        Values.AutoRightSpeed = v
+        if Enabled.AutoRight then
+            STEAL_PATH_VELOCITY_SPEED = v
+        end
+    end, order) order += 1
+    CreateToggle(AutoPlayFrame, "Auto Play Left Sequence", "AutoLeft", function(s)
+        Enabled.AutoLeft = s
+        if s then
+            countdownPreferredSide = "left"
+            Enabled.AutoRight = false
+            if VisualSetters.AutoRight then VisualSetters.AutoRight(false, true) end
+            if floatButtonReferences.AutoRight then floatButtonReferences.AutoRight(false) end
+            refreshAllBoxButtonStates()
+            stopStealPath()
+            startStealPath(stealPath_Left)
+        else
+            stopStealPath()
+        end
+    end, order, "AUTOLEFT") order += 1
+    CreateToggle(AutoPlayFrame, "Auto Play Right Sequence", "AutoRight", function(s)
+        Enabled.AutoRight = s
+        if s then
+            countdownPreferredSide = "right"
+            Enabled.AutoLeft = false
+            if VisualSetters.AutoLeft then VisualSetters.AutoLeft(false, true) end
+            if floatButtonReferences.AutoLeft then floatButtonReferences.AutoLeft(false) end
+            refreshAllBoxButtonStates()
+            stopStealPath()
+            startStealPath(stealPath_Right)
+        else
+            stopStealPath()
+        end
+    end, order, "AUTORIGHT") order += 1
+    CreateSlider(AutoPlayFrame, "Base Exit Distance", 0, 30, "AutoPlayExitDist", function(v)
+        Values.AutoPlayExitDist = v
+    end, order) order += 1
+    CreateSlider(AutoPlayFrame, "Auto Play Return Speed", 1, 100, "AutoPlayReturnSpeed", function(v)
+        Values.AutoPlayReturnSpeed = v
+        STEAL_PATH_SECOND_SPEED = v
+    end, order) order += 1
+    CreateSlider(AutoPlayFrame, "Auto Play Wait (Secs)", 0.05, 10, "AutoPlayWaitTime", function(v)
+        Values.AutoPlayWaitTime = v
+    end, order) order += 1
+    CreateToggle(AutoPlayFrame, "Auto Play After Countdown", "CountdownAutoPlay", function(s)
+        Enabled.CountdownAutoPlay = s
+        countdownAutoEnabled = s
+    end, order) order += 1
+end)
+if not autoPlayUiOk then
+    warn("[F7 DUELS] Autoplay UI build failed: " .. tostring(autoPlayUiErr))
+end
 
 setMobileButtonsVisible = function(state)
     refreshAllBoxButtonStates()
@@ -4462,7 +4467,10 @@ end)
 
 end
 
-buildGui()
+local buildOk, buildErr = pcall(buildGui)
+if not buildOk then
+    warn("[F7 DUELS] buildGui failed: " .. tostring(buildErr))
+end
 
 Player.CharacterAdded:Connect(function()
     task.wait(1)
