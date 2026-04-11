@@ -2020,19 +2020,6 @@ local lazyAutoPlayBaseWaypoints = {
         Vector3.new(-476.2, -6.2, 113.5),
     },
 }
-local k7ResetWaypoints = {
-    Left = {
-        Vector3.new(-476.48, -6.28, 92.73),
-        Vector3.new(-482.85, -5.03, 93.13),
-        Vector3.new(-482.42, -5.03, 27.84),
-    },
-    Right = {
-        Vector3.new(-476.16, -6.52, 25.62),
-        Vector3.new(-483.06, -5.03, 27.51),
-        Vector3.new(-481.94, -5.03, 92.42),
-    },
-}
-
 local function rebuildLazyWaypointPositions()
     for groupName, points in pairs(lazyAutoPlayBaseWaypoints) do
         for index, basePoint in ipairs(points) do
@@ -3938,12 +3925,6 @@ local function applyWaypointAbsolutePosition(groupName, index, worldPosition)
     applyWaypointOffset(groupName, index, offset.X, offset.Y, offset.Z)
 end
 
-local function restoreK7Waypoint(groupName, index)
-    local target = k7ResetWaypoints[groupName] and k7ResetWaypoints[groupName][index]
-    if not target then return end
-    applyWaypointAbsolutePosition(groupName, index, target)
-end
-
 local function CreateWaypointRow(parent, definition, rowOrder)
     local row = Create("Frame", {
         BackgroundColor3 = Color3.fromRGB(16, 18, 30),
@@ -3997,7 +3978,7 @@ local function CreateWaypointRow(parent, definition, rowOrder)
             Position = UDim2.new(0, xOffset, 0, 15),
             Font = Enum.Font.GothamBold,
             TextSize = 8,
-            TextColor3 = SOFT_PINK,
+            TextColor3 = Color3.fromRGB(255, 255, 255),
             Text = formatWaypointNumber(initialValue),
             ClearTextOnFocus = false,
             BorderSizePixel = 0,
@@ -4074,7 +4055,7 @@ local function CreateWaypointRow(parent, definition, rowOrder)
     end)
 
     resetButton.MouseButton1Click:Connect(function()
-        restoreK7Waypoint(definition.group, definition.idx)
+        applyWaypointOffset(definition.group, definition.idx, 0, 0, 0)
         refreshWaypointEditorRows()
     end)
     resetButton.MouseEnter:Connect(function()
@@ -4093,7 +4074,7 @@ local function CreateWaypointRow(parent, definition, rowOrder)
     registerThemeCallback(function(themePalette)
         syncThemeLocals(themePalette)
         for _, box in ipairs(boxes) do
-            box.TextColor3 = SOFT_PINK
+            box.TextColor3 = Color3.fromRGB(255, 255, 255)
             local stroke = box:FindFirstChildOfClass("UIStroke")
             if stroke then
                 stroke.Color = PURPLE
@@ -4146,12 +4127,11 @@ local resetAllWaypointsButton = Create("TextButton", {
 })
 
 resetAllWaypointsButton.MouseButton1Click:Connect(function()
-    for groupName, points in pairs(k7ResetWaypoints) do
-        for index, point in ipairs(points) do
-            applyWaypointAbsolutePosition(groupName, index, point)
-        end
-    end
+    wpOffsets.Left = {Vector3.zero, Vector3.zero, Vector3.zero}
+    wpOffsets.Right = {Vector3.zero, Vector3.zero, Vector3.zero}
+    rebuildLazyWaypointPositions()
     refreshWaypointEditorRows()
+    saveConfig()
 end)
 
 setMobileButtonsVisible = function(state)
