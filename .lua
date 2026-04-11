@@ -2029,12 +2029,17 @@ local function rebuildLazyWaypointPositions()
     end
 end
 
+local function formatWaypointNumber(value)
+    local rounded = math.floor((tonumber(value) or 0) * 100 + 0.5) / 100
+    return string.format("%.2f", rounded)
+end
+
 local function refreshWaypointEditorRows()
     for _, binding in ipairs(waypointRowBindings) do
-        local offset = wpOffsets[binding.group][binding.idx] or Vector3.zero
-        binding.boxes[1].Text = tostring(offset.X)
-        binding.boxes[2].Text = tostring(offset.Y)
-        binding.boxes[3].Text = tostring(offset.Z)
+        local point = lazyAutoPlayWaypoints[binding.group][binding.idx] or Vector3.zero
+        binding.boxes[1].Text = formatWaypointNumber(point.X)
+        binding.boxes[2].Text = formatWaypointNumber(point.Y)
+        binding.boxes[3].Text = formatWaypointNumber(point.Z)
     end
 end
 
@@ -3905,7 +3910,7 @@ local waypointDefinitions = {
 }
 
 local WAYPOINT_ROW_H = 44
-local WAYPOINT_BOX_W = 46
+local WAYPOINT_BOX_W = 54
 local WAYPOINT_BOX_H = 22
 
 local function applyWaypointOffset(groupName, index, x, y, z)
@@ -3936,7 +3941,7 @@ local function CreateWaypointRow(parent, definition, rowOrder)
 
     Create("TextLabel", {
         BackgroundTransparency = 1,
-        Size = UDim2.new(0, 66, 1, 0),
+        Size = UDim2.new(0, 58, 1, 0),
         Position = UDim2.new(0, 6, 0, 0),
         Font = Enum.Font.GothamBold,
         Text = definition.label,
@@ -3966,16 +3971,16 @@ local function CreateWaypointRow(parent, definition, rowOrder)
             Parent = row,
         })
 
-        local offset = wpOffsets[definition.group][definition.idx] or Vector3.zero
-        local initialValue = axisIndex == 1 and offset.X or (axisIndex == 2 and offset.Y or offset.Z)
+        local point = lazyAutoPlayWaypoints[definition.group][definition.idx] or Vector3.zero
+        local initialValue = axisIndex == 1 and point.X or (axisIndex == 2 and point.Y or point.Z)
         local box = Create("TextBox", {
             BackgroundColor3 = Color3.fromRGB(22, 25, 42),
             Size = UDim2.new(0, WAYPOINT_BOX_W, 0, WAYPOINT_BOX_H),
             Position = UDim2.new(0, xOffset, 0, 15),
             Font = Enum.Font.GothamBold,
-            TextSize = 9,
+            TextSize = 8,
             TextColor3 = SOFT_PINK,
-            Text = tostring(initialValue),
+            Text = formatWaypointNumber(initialValue),
             ClearTextOnFocus = false,
             BorderSizePixel = 0,
             ZIndex = 7,
@@ -3987,16 +3992,15 @@ local function CreateWaypointRow(parent, definition, rowOrder)
 
         box.FocusLost:Connect(function()
             local parsed = tonumber(box.Text)
-            local current = wpOffsets[definition.group][definition.idx] or Vector3.zero
+            local currentPoint = lazyAutoPlayWaypoints[definition.group][definition.idx] or Vector3.zero
             if parsed then
-                local x = axisIndex == 1 and parsed or current.X
-                local y = axisIndex == 2 and parsed or current.Y
-                local z = axisIndex == 3 and parsed or current.Z
-                applyWaypointOffset(definition.group, definition.idx, x, y, z)
-                local updated = wpOffsets[definition.group][definition.idx]
-                box.Text = tostring(axisIndex == 1 and updated.X or (axisIndex == 2 and updated.Y or updated.Z))
+                local x = axisIndex == 1 and parsed or currentPoint.X
+                local y = axisIndex == 2 and parsed or currentPoint.Y
+                local z = axisIndex == 3 and parsed or currentPoint.Z
+                applyWaypointAbsolutePosition(definition.group, definition.idx, Vector3.new(x, y, z))
+                refreshWaypointEditorRows()
             else
-                box.Text = tostring(axisIndex == 1 and current.X or (axisIndex == 2 and current.Y or current.Z))
+                box.Text = formatWaypointNumber(axisIndex == 1 and currentPoint.X or (axisIndex == 2 and currentPoint.Y or currentPoint.Z))
             end
         end)
 
