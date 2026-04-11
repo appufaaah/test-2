@@ -1,4 +1,3 @@
-
 -- GOJO DUELS
 -- Eclipse Aura Edition - Animated Duel UI
 
@@ -2909,7 +2908,7 @@ local function setTab(tabName)
     end
 end
 
-local function CreateTabButton(tabName, order, width)
+local function CreateTabButton(tabName, order, width, textSize)
     local button = Create("TextButton", {
         BackgroundColor3 = Color3.fromRGB(18, 29, 50),
         Size = UDim2.new(0, width, 1, 0),
@@ -2929,7 +2928,7 @@ local function CreateTabButton(tabName, order, width)
         Font = Enum.Font.GothamBold,
         Text = tabName,
         TextColor3 = Color3.fromRGB(154, 171, 204),
-        TextSize = 8,
+        TextSize = textSize or 8,
         ZIndex = 14,
         Parent = button
     })
@@ -2949,7 +2948,7 @@ CreateTabButton("FEATURES", 1, 70)
 CreateTabButton("KEYBINDS", 2, 70)
 CreateTabButton("SETTINGS", 3, 70)
 CreateTabButton("MOBILE", 4, 58)
-CreateTabButton("AUTOPLAY", 5, 72)
+CreateTabButton("AUTOPLAY", 5, 64, 7)
 setTab("FEATURES")
 registerThemeCallback(function(themePalette)
     syncThemeLocals(themePalette)
@@ -3915,6 +3914,13 @@ local function applyWaypointOffset(groupName, index, x, y, z)
     saveConfig()
 end
 
+local function applyWaypointAbsolutePosition(groupName, index, worldPosition)
+    local basePoint = lazyAutoPlayBaseWaypoints[groupName] and lazyAutoPlayBaseWaypoints[groupName][index]
+    if not basePoint or not worldPosition then return end
+    local offset = worldPosition - basePoint
+    applyWaypointOffset(groupName, index, offset.X, offset.Y, offset.Z)
+end
+
 local function CreateWaypointRow(parent, definition, rowOrder)
     local row = Create("Frame", {
         BackgroundColor3 = Color3.fromRGB(16, 18, 30),
@@ -4014,6 +4020,37 @@ local function CreateWaypointRow(parent, definition, rowOrder)
         Create("UIStroke", { Color = PURPLE, Thickness = 1 }),
     })
 
+    local pickButton = Create("TextButton", {
+        BackgroundColor3 = Color3.fromRGB(28, 32, 55),
+        Size = UDim2.new(0, 24, 0, WAYPOINT_BOX_H),
+        Position = UDim2.new(1, -56, 0, 15),
+        Font = Enum.Font.GothamBold,
+        Text = "P",
+        TextColor3 = SOFT_PINK,
+        TextSize = 11,
+        BorderSizePixel = 0,
+        AutoButtonColor = false,
+        ZIndex = 7,
+        Parent = row,
+    }, {
+        Create("UICorner", { CornerRadius = UDim.new(0, 5) }),
+        Create("UIStroke", { Color = PURPLE, Thickness = 1 }),
+    })
+
+    pickButton.MouseButton1Click:Connect(function()
+        local char = Player.Character
+        local root = char and char:FindFirstChild("HumanoidRootPart")
+        if not root then return end
+        applyWaypointAbsolutePosition(definition.group, definition.idx, root.Position)
+        refreshWaypointEditorRows()
+    end)
+    pickButton.MouseEnter:Connect(function()
+        TweenService:Create(pickButton, TweenInfo.new(0.1), { BackgroundColor3 = Color3.fromRGB(40, 55, 90) }):Play()
+    end)
+    pickButton.MouseLeave:Connect(function()
+        TweenService:Create(pickButton, TweenInfo.new(0.1), { BackgroundColor3 = Color3.fromRGB(28, 32, 55) }):Play()
+    end)
+
     resetButton.MouseButton1Click:Connect(function()
         applyWaypointOffset(definition.group, definition.idx, 0, 0, 0)
         refreshWaypointEditorRows()
@@ -4039,6 +4076,11 @@ local function CreateWaypointRow(parent, definition, rowOrder)
             if stroke then
                 stroke.Color = PURPLE
             end
+        end
+        pickButton.TextColor3 = SOFT_PINK
+        local pickStroke = pickButton:FindFirstChildOfClass("UIStroke")
+        if pickStroke then
+            pickStroke.Color = PURPLE
         end
         resetButton.TextColor3 = SOFT_PINK
         local stroke = resetButton:FindFirstChildOfClass("UIStroke")
