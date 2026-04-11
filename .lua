@@ -2031,7 +2031,7 @@ local function rebuildLazyWaypointPositions()
             lazyAutoPlayWaypoints[groupName][index] = basePoint + (wpOffsets[groupName][index] or Vector3.zero)
         end
     end
-    refreshWaypointESPVisuals()
+    pcall(refreshWaypointESPVisuals)
 end
 
 local function formatWaypointNumber(value)
@@ -2260,66 +2260,66 @@ end
 local waypointESPFolder = nil
 
 refreshWaypointESPVisuals = function()
-    if waypointESPFolder then
-        waypointESPFolder:Destroy()
-        waypointESPFolder = nil
-    end
-    if not Enabled.WaypointESP then return end
-
-    waypointESPFolder = Instance.new("Folder")
-    waypointESPFolder.Name = "F7WaypointESP"
-    waypointESPFolder.Parent = workspace
-
-    local pointColors = {
-        Left = PURPLE_LIGHT,
-        Right = STARLIGHT,
-    }
-
-    for groupName, points in pairs(lazyAutoPlayWaypoints) do
-        for index, point in ipairs(points) do
-            local anchor = Instance.new("Part")
-            anchor.Name = groupName .. "Waypoint" .. tostring(index)
-            anchor.Anchored = true
-            anchor.CanCollide = false
-            anchor.CanQuery = false
-            anchor.CanTouch = false
-            anchor.Material = Enum.Material.Neon
-            anchor.Shape = Enum.PartType.Ball
-            anchor.Size = Vector3.new(0.9, 0.9, 0.9)
-            anchor.Color = pointColors[groupName] or SOFT_PINK
-            anchor.Transparency = 0.15
-            anchor.Position = point
-            anchor.Parent = waypointESPFolder
-
-            local billboard = Instance.new("BillboardGui")
-            billboard.Name = "Label"
-            billboard.Size = UDim2.new(0, 90, 0, 24)
-            billboard.StudsOffset = Vector3.new(0, 1.4, 0)
-            billboard.AlwaysOnTop = true
-            billboard.Parent = anchor
-
-            local label = Instance.new("TextLabel")
-            label.BackgroundTransparency = 1
-            label.Size = UDim2.new(1, 0, 1, 0)
-            label.Font = Enum.Font.GothamBold
-            label.TextSize = 11
-            label.TextStrokeTransparency = 0.35
-            label.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
-            label.TextColor3 = Color3.fromRGB(255, 255, 255)
-            label.Text = string.format("%s%d", groupName == "Left" and "L" or "R", index)
-            label.Parent = billboard
+    pcall(function()
+        if waypointESPFolder then
+            waypointESPFolder:Destroy()
+            waypointESPFolder = nil
         end
-    end
+        if not Enabled.WaypointESP then return end
+
+        waypointESPFolder = Instance.new("Folder")
+        waypointESPFolder.Name = "F7WaypointESP"
+        waypointESPFolder.Parent = workspace
+
+        local pointColors = {
+            Left = PURPLE_LIGHT,
+            Right = STARLIGHT,
+        }
+
+        for groupName, points in pairs(lazyAutoPlayWaypoints) do
+            for index, point in ipairs(points) do
+                local anchor = Instance.new("Part")
+                anchor.Name = groupName .. "Waypoint" .. tostring(index)
+                anchor.Anchored = true
+                anchor.CanCollide = false
+                anchor.Material = Enum.Material.Neon
+                anchor.Shape = Enum.PartType.Ball
+                anchor.Size = Vector3.new(0.9, 0.9, 0.9)
+                anchor.Color = pointColors[groupName] or SOFT_PINK
+                anchor.Transparency = 0.15
+                anchor.Position = point
+                anchor.Parent = waypointESPFolder
+
+                local billboard = Instance.new("BillboardGui")
+                billboard.Name = "Label"
+                billboard.Size = UDim2.new(0, 90, 0, 24)
+                billboard.StudsOffset = Vector3.new(0, 1.4, 0)
+                billboard.AlwaysOnTop = true
+                billboard.Parent = anchor
+
+                local label = Instance.new("TextLabel")
+                label.BackgroundTransparency = 1
+                label.Size = UDim2.new(1, 0, 1, 0)
+                label.Font = Enum.Font.GothamBold
+                label.TextSize = 11
+                label.TextStrokeTransparency = 0.35
+                label.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
+                label.TextColor3 = Color3.fromRGB(255, 255, 255)
+                label.Text = string.format("%s%d", groupName == "Left" and "L" or "R", index)
+                label.Parent = billboard
+            end
+        end
+    end)
 end
 
 function startWaypointESP()
     Enabled.WaypointESP = true
-    refreshWaypointESPVisuals()
+    pcall(refreshWaypointESPVisuals)
 end
 
 function stopWaypointESP()
     Enabled.WaypointESP = false
-    refreshWaypointESPVisuals()
+    pcall(refreshWaypointESPVisuals)
 end
 
 -- ============================================================
