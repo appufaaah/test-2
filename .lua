@@ -72,8 +72,11 @@ local Values = {
     HOP_POWER            = 35,
     HOP_COOLDOWN         = 0.08,
     BatAimbotSpeed       = 60,
-    StealPathSpeed       = 60,
-    StealPathReturnSpeed = 29,
+    AutoLeftSpeed        = 59.5,
+    AutoRightSpeed       = 59.5,
+    AutoPlayReturnSpeed  = 30,
+    AutoPlayWaitTime     = 1.0,
+    AutoPlayExitDist     = 6.0,
     TracerThickness      = 2,
     PlatformHeight       = 14,
     ThemePreset          = "Blue",
@@ -120,11 +123,6 @@ local ThemeCallbacks = {}
 local countdownAutoEnabled = false
 local countdownAutoActive = false
 local countdownPreferredSide = "right"
-local wpOffsets = {
-    Left = {Vector3.zero, Vector3.zero, Vector3.zero, Vector3.zero},
-    Right = {Vector3.zero, Vector3.zero, Vector3.zero, Vector3.zero},
-}
-local waypointRowBindings = {}
 local THEME_PRESETS = {
     Blue = {
         accent = Color3.fromRGB(100, 180, 255),
@@ -213,38 +211,6 @@ local function serializeFloatPositions()
     return serialized
 end
 
-local function serializeWaypointOffsets()
-    local serialized = {}
-    for groupName, offsets in pairs(wpOffsets) do
-        serialized[groupName] = {}
-        for index, offset in ipairs(offsets) do
-            serialized[groupName][index] = {
-                x = offset.X,
-                y = offset.Y,
-                z = offset.Z,
-            }
-        end
-    end
-    return serialized
-end
-
-local function deserializeWaypointOffsets(saved)
-    if type(saved) ~= "table" then return end
-    for groupName, offsets in pairs(saved) do
-        if wpOffsets[groupName] and type(offsets) == "table" then
-            for index, offset in ipairs(offsets) do
-                if type(offset) == "table" then
-                    wpOffsets[groupName][index] = Vector3.new(
-                        tonumber(offset.x) or 0,
-                        tonumber(offset.y) or 0,
-                        tonumber(offset.z) or 0
-                    )
-                end
-            end
-        end
-    end
-end
-
 local function deserializeFloatPositions(savedPositions)
     local positions = {}
     if type(savedPositions) ~= "table" then
@@ -296,7 +262,6 @@ local function saveConfig()
         enabled = Enabled,
         values = Values,
         floatPositions = serializeFloatPositions(),
-        waypointOffsets = serializeWaypointOffsets(),
         keybinds = serializeKeybinds(),
     }
     pcall(function()
@@ -317,7 +282,6 @@ local function loadConfig()
         mergeTable(Enabled, configData.enabled)
         mergeTable(Values, configData.values)
         floatButtonPositions = deserializeFloatPositions(configData.floatPositions)
-        deserializeWaypointOffsets(configData.waypointOffsets)
         deserializeKeybinds(configData.keybinds)
     end
 end
@@ -327,7 +291,7 @@ Enabled.HitCircle = nil
 countdownAutoEnabled = Enabled.CountdownAutoPlay or false
 if Values.BoostSpeed == 30 then Values.BoostSpeed = 60 end
 if Values.BatAimbotSpeed == 55 then Values.BatAimbotSpeed = 60 end
-if Values.StealPathReturnSpeed == 30 then Values.StealPathReturnSpeed = 29 end
+if Values.AutoPlayReturnSpeed == 29 then Values.AutoPlayReturnSpeed = 30 end
 Values.GuiScale = math.clamp(tonumber(Values.GuiScale) or 1, 0.6, 1)
 
 local function clearThemeCallbacks()
@@ -1984,69 +1948,37 @@ local function stopWalkFling()
     walkFlingConnections = {}
 end
 
--- Lazy Auto Play
+-- Zephron Auto Play
 local STEAL_PATH_VELOCITY_SPEED = 60
-local STEAL_PATH_SECOND_SPEED = 29
+local STEAL_PATH_SECOND_SPEED = 30
 
 local stealPath_Right = { side = "right" }
 local stealPath_Left = { side = "left" }
 
-local lazyAutoPlayConnectionLeft = nil
-local lazyAutoPlayConnectionRight = nil
-local lazyAutoPlayPhaseLeft = 1
-local lazyAutoPlayPhaseRight = 1
+local zephronAutoPlayConnectionLeft = nil
+local zephronAutoPlayConnectionRight = nil
+local zephronAutoPlayPhaseLeft = 1
+local zephronAutoPlayPhaseRight = 1
+local zephronAutoPlayWaitLeft = false
+local zephronAutoPlayWaitRight = false
+local zephronAutoPlayWaitStartLeft = 0
+local zephronAutoPlayWaitStartRight = 0
 
-local lazyAutoPlayWaypoints = {
-    Left = {
-        Vector3.new(-476.2, -6.5, 94.8),
-        Vector3.new(-484.1, -4.7, 94.7),
-        Vector3.new(-476.2, -6.5, 94.8),
-        Vector3.new(-476.5, -6.1, 7.5),
-    },
-    Right = {
-        Vector3.new(-476.2, -6.1, 25.8),
-        Vector3.new(-484.1, -4.7, 25.9),
-        Vector3.new(-476.2, -6.1, 25.8),
-        Vector3.new(-476.2, -6.2, 113.5),
-    },
-}
-local lazyAutoPlayBaseWaypoints = {
-    Left = {
-        Vector3.new(-476.2, -6.5, 94.8),
-        Vector3.new(-484.1, -4.7, 94.7),
-        Vector3.new(-476.2, -6.5, 94.8),
-        Vector3.new(-476.5, -6.1, 7.5),
-    },
-    Right = {
-        Vector3.new(-476.2, -6.1, 25.8),
-        Vector3.new(-484.1, -4.7, 25.9),
-        Vector3.new(-476.2, -6.1, 25.8),
-        Vector3.new(-476.2, -6.2, 113.5),
-    },
-}
-local function rebuildLazyWaypointPositions()
-    for groupName, points in pairs(lazyAutoPlayBaseWaypoints) do
-        for index, basePoint in ipairs(points) do
-            lazyAutoPlayWaypoints[groupName][index] = basePoint + (wpOffsets[groupName][index] or Vector3.zero)
-        end
-    end
+local POSITION_1 = Vector3.new(-476.48, -6.28, 92.73)
+local POSITION_2 = Vector3.new(-483.12, -4.95, 94.80)
+local POSITION_R1 = Vector3.new(-476.16, -6.52, 25.62)
+local POSITION_R2 = Vector3.new(-483.04, -5.09, 23.14)
+
+local dirL = (Vector3.new(POSITION_1.X, 0, POSITION_1.Z) - Vector3.new(POSITION_2.X, 0, POSITION_2.Z)).Unit
+local dirR = (Vector3.new(POSITION_R1.X, 0, POSITION_R1.Z) - Vector3.new(POSITION_R2.X, 0, POSITION_R2.Z)).Unit
+
+local function GET_POS_1_OUT()
+    return POSITION_1 + (dirL * Values.AutoPlayExitDist)
 end
 
-local function formatWaypointNumber(value)
-    local rounded = math.floor((tonumber(value) or 0) * 100 + 0.5) / 100
-    return string.format("%.2f", rounded)
+local function GET_POS_R1_OUT()
+    return POSITION_R1 + (dirR * Values.AutoPlayExitDist)
 end
-
-local function refreshWaypointEditorRows()
-    for _, binding in ipairs(waypointRowBindings) do
-        local point = lazyAutoPlayWaypoints[binding.group][binding.idx] or Vector3.zero
-        binding.boxes[1].Text = formatWaypointNumber(point.X)
-        binding.boxes[2].Text = formatWaypointNumber(point.Y)
-        binding.boxes[3].Text = formatWaypointNumber(point.Z)
-    end
-end
-
-rebuildLazyWaypointPositions()
 
 local function updateStealPathProgress(stage, progress)
     if ProgressLabel then
@@ -2069,17 +2001,48 @@ local function faceAutoPlayYaw(yawDegrees)
     end
 end
 
+local function ensureZephronAutoPlayOrientation(hrp)
+    if not hrp then return nil end
+    local walkOri = hrp:FindFirstChild("AutoWalkOri")
+    if not walkOri then
+        local walkAtt = Instance.new("Attachment")
+        walkAtt.Name = "AutoWalkAtt"
+        walkAtt.Parent = hrp
+
+        walkOri = Instance.new("AlignOrientation")
+        walkOri.Name = "AutoWalkOri"
+        walkOri.Mode = Enum.OrientationAlignmentMode.OneAttachment
+        walkOri.Attachment0 = walkAtt
+        walkOri.MaxTorque = math.huge
+        walkOri.Responsiveness = 200
+        walkOri.Parent = hrp
+    end
+    return walkOri
+end
+
+local function clearZephronAutoPlayOrientation(hrp)
+    if not hrp then return end
+    local walkOri = hrp:FindFirstChild("AutoWalkOri")
+    local walkAtt = hrp:FindFirstChild("AutoWalkAtt")
+    if walkOri then walkOri:Destroy() end
+    if walkAtt then walkAtt:Destroy() end
+end
+
 local function disconnectLazyAutoPlay(side)
-    local connection = side == "left" and lazyAutoPlayConnectionLeft or lazyAutoPlayConnectionRight
+    local connection = side == "left" and zephronAutoPlayConnectionLeft or zephronAutoPlayConnectionRight
     if connection then
         connection:Disconnect()
     end
     if side == "left" then
-        lazyAutoPlayConnectionLeft = nil
-        lazyAutoPlayPhaseLeft = 1
+        zephronAutoPlayConnectionLeft = nil
+        zephronAutoPlayPhaseLeft = 1
+        zephronAutoPlayWaitLeft = false
+        zephronAutoPlayWaitStartLeft = 0
     else
-        lazyAutoPlayConnectionRight = nil
-        lazyAutoPlayPhaseRight = 1
+        zephronAutoPlayConnectionRight = nil
+        zephronAutoPlayPhaseRight = 1
+        zephronAutoPlayWaitRight = false
+        zephronAutoPlayWaitStartRight = 0
     end
 end
 
@@ -2093,6 +2056,7 @@ local function stopLazyAutoPlaySide(side, keepState)
     end
     if root then
         root.AssemblyLinearVelocity = Vector3.zero
+        clearZephronAutoPlayOrientation(root)
     end
     if keepState then return end
 
@@ -2109,21 +2073,14 @@ local function stopLazyAutoPlaySide(side, keepState)
     updateStealPathProgress("READY", 0)
 end
 
-local function getLazyAutoPlaySpeed(carryPhase)
-    if carryPhase then
-        return getEclipseSpeed(Values.StealPathReturnSpeed, 1, 90)
-    end
-    return getEclipseSpeed(Values.StealPathSpeed, 1, 120)
-end
-
 function startStealPath(path)
     local side = (path == stealPath_Left or (type(path) == "table" and path.side == "left")) and "left" or "right"
     local char = Player.Character
     local root = char and char:FindFirstChild("HumanoidRootPart")
     if not root then return end
 
-    STEAL_PATH_VELOCITY_SPEED = Values.StealPathSpeed
-    STEAL_PATH_SECOND_SPEED = Values.StealPathReturnSpeed
+    STEAL_PATH_VELOCITY_SPEED = side == "left" and Values.AutoLeftSpeed or Values.AutoRightSpeed
+    STEAL_PATH_SECOND_SPEED = Values.AutoPlayReturnSpeed
 
     disconnectLazyAutoPlay("left")
     disconnectLazyAutoPlay("right")
@@ -2136,7 +2093,9 @@ function startStealPath(path)
         if VisualSetters.AutoRight then VisualSetters.AutoRight(false, true) end
         if floatButtonReferences.AutoLeft then floatButtonReferences.AutoLeft(true) end
         if floatButtonReferences.AutoRight then floatButtonReferences.AutoRight(false) end
-        lazyAutoPlayPhaseLeft = 1
+        zephronAutoPlayPhaseLeft = 1
+        zephronAutoPlayWaitLeft = false
+        zephronAutoPlayWaitStartLeft = 0
     else
         countdownPreferredSide = "right"
         Enabled.AutoRight = true
@@ -2145,13 +2104,17 @@ function startStealPath(path)
         if VisualSetters.AutoLeft then VisualSetters.AutoLeft(false, true) end
         if floatButtonReferences.AutoRight then floatButtonReferences.AutoRight(true) end
         if floatButtonReferences.AutoLeft then floatButtonReferences.AutoLeft(false) end
-        lazyAutoPlayPhaseRight = 1
+        zephronAutoPlayPhaseRight = 1
+        zephronAutoPlayWaitRight = false
+        zephronAutoPlayWaitStartRight = 0
     end
     refreshAllBoxButtonStates()
-    updateStealPathProgress(side == "left" and "LAZY AUTO PLAY LEFT" or "LAZY AUTO PLAY RIGHT", 0.08)
+    updateStealPathProgress(side == "left" and "ZEPHRON AUTO PLAY LEFT" or "ZEPHRON AUTO PLAY RIGHT", 0.08)
 
-    local stuckTimer = 0
-    local lastPos = nil
+    local sequence = side == "left"
+        and {GET_POS_1_OUT, POSITION_1, POSITION_2, POSITION_1, GET_POS_1_OUT, GET_POS_R1_OUT, POSITION_R1, POSITION_R2}
+        or {GET_POS_R1_OUT, POSITION_R1, POSITION_R2, POSITION_R1, GET_POS_R1_OUT, GET_POS_1_OUT, POSITION_1, POSITION_2}
+
     local connection
     connection = RunService.Heartbeat:Connect(function(dt)
         local c = Player.Character
@@ -2165,86 +2128,77 @@ function startStealPath(path)
             return
         end
 
-        local points = side == "left" and lazyAutoPlayWaypoints.Left or lazyAutoPlayWaypoints.Right
-        local phase = side == "left" and lazyAutoPlayPhaseLeft or lazyAutoPlayPhaseRight
-        local targetIndex = math.clamp(phase, 1, #points)
-        local target = points[targetIndex]
-        local planarTarget = Vector3.new(target.X, hrp.Position.Y, target.Z)
-        local delta = planarTarget - hrp.Position
-        local dist = delta.Magnitude
+        local phase = side == "left" and zephronAutoPlayPhaseLeft or zephronAutoPlayPhaseRight
+        local isWaiting = side == "left" and zephronAutoPlayWaitLeft or zephronAutoPlayWaitRight
+        local waitStart = side == "left" and zephronAutoPlayWaitStartLeft or zephronAutoPlayWaitStartRight
 
-        if side == "right" then
-            local curPos = hrp.Position
-            if lastPos then
-                if (curPos - lastPos).Magnitude < 0.05 then
-                    stuckTimer += dt
+        if isWaiting then
+            hrp.AssemblyLinearVelocity = Vector3.new(0, hrp.AssemblyLinearVelocity.Y, 0)
+            if tick() - waitStart >= Values.AutoPlayWaitTime then
+                if side == "left" then
+                    zephronAutoPlayWaitLeft = false
+                    zephronAutoPlayPhaseLeft = zephronAutoPlayPhaseLeft + 1
                 else
-                    stuckTimer = 0
+                    zephronAutoPlayWaitRight = false
+                    zephronAutoPlayPhaseRight = zephronAutoPlayPhaseRight + 1
                 end
             end
-            lastPos = curPos
+            return
         end
 
-        if phase == 1 then
-            if dist < 1.5 then
-                if side == "left" then lazyAutoPlayPhaseLeft = 2 else lazyAutoPlayPhaseRight = 2 end
-                updateStealPathProgress("PICKUP", 0.25)
-                stuckTimer = 0
-                return
+        if phase <= #sequence then
+            local targetPos = sequence[phase]
+            if type(targetPos) == "function" then
+                targetPos = targetPos()
             end
-            local dir = Vector3.new(delta.X, 0, delta.Z).Unit
-            local speed = getLazyAutoPlaySpeed(false)
-            hum:Move(dir, false)
-            hrp.AssemblyLinearVelocity = Vector3.new(dir.X * speed, hrp.AssemblyLinearVelocity.Y, dir.Z * speed)
-        elseif phase == 2 then
-            if dist < 1.5 then
-                if side == "left" then lazyAutoPlayPhaseLeft = 3 else lazyAutoPlayPhaseRight = 3 end
-                updateStealPathProgress("CARRY", 0.5)
-                stuckTimer = 0
-                return
-            end
-            if side == "right" and stuckTimer > 0.4 then
-                stuckTimer = 0
-                local snap = Vector3.new(target.X - hrp.Position.X, 0, target.Z - hrp.Position.Z)
-                if snap.Magnitude > 0 then
-                    hrp.CFrame = CFrame.new(hrp.Position + snap.Unit * math.min(4, snap.Magnitude))
-                    hrp.AssemblyLinearVelocity = Vector3.zero
+
+            local planarTarget = Vector3.new(targetPos.X, hrp.Position.Y, targetPos.Z)
+            local delta = planarTarget - hrp.Position
+            local dist = delta.Magnitude
+
+            if dist < 1 then
+                hrp.AssemblyLinearVelocity = Vector3.new(0, hrp.AssemblyLinearVelocity.Y, 0)
+                if phase == 3 then
+                    if side == "left" then
+                        zephronAutoPlayWaitLeft = true
+                        zephronAutoPlayWaitStartLeft = tick()
+                    else
+                        zephronAutoPlayWaitRight = true
+                        zephronAutoPlayWaitStartRight = tick()
+                    end
+                    updateStealPathProgress("WAIT", 0.4)
+                else
+                    if side == "left" then
+                        zephronAutoPlayPhaseLeft = zephronAutoPlayPhaseLeft + 1
+                        updateStealPathProgress("RUNNING", math.clamp(zephronAutoPlayPhaseLeft / #sequence, 0, 1))
+                    else
+                        zephronAutoPlayPhaseRight = zephronAutoPlayPhaseRight + 1
+                        updateStealPathProgress("RUNNING", math.clamp(zephronAutoPlayPhaseRight / #sequence, 0, 1))
+                    end
                 end
-                return
+            else
+                local flatDir = Vector3.new(delta.X, 0, delta.Z)
+                if flatDir.Magnitude > 0 then
+                    local moveDir = flatDir.Unit
+                    local walkOri = ensureZephronAutoPlayOrientation(hrp)
+                    if walkOri then
+                        walkOri.CFrame = CFrame.lookAt(hrp.Position, planarTarget)
+                    end
+                    local speedToUse = (phase >= 4) and Values.AutoPlayReturnSpeed or (side == "left" and Values.AutoLeftSpeed or Values.AutoRightSpeed)
+                    hrp.AssemblyLinearVelocity = Vector3.new(moveDir.X * speedToUse, hrp.AssemblyLinearVelocity.Y, moveDir.Z * speedToUse)
+                end
             end
-            local dir = Vector3.new(delta.X, 0, delta.Z).Unit
-            local speed = getLazyAutoPlaySpeed(true)
-            hum:Move(dir, false)
-            hrp.AssemblyLinearVelocity = Vector3.new(dir.X * speed, hrp.AssemblyLinearVelocity.Y, dir.Z * speed)
-        elseif phase == 3 then
-            if dist < 1.5 then
-                if side == "left" then lazyAutoPlayPhaseLeft = 4 else lazyAutoPlayPhaseRight = 4 end
-                updateStealPathProgress("RETURN", 0.75)
-                return
-            end
-            local dir = Vector3.new(delta.X, 0, delta.Z).Unit
-            local speed = getLazyAutoPlaySpeed(true)
-            hum:Move(dir, false)
-            hrp.AssemblyLinearVelocity = Vector3.new(dir.X * speed, hrp.AssemblyLinearVelocity.Y, dir.Z * speed)
-        elseif phase == 4 then
-            if dist < 1.5 then
-                hum:Move(Vector3.zero, false)
-                hrp.AssemblyLinearVelocity = Vector3.zero
-                faceAutoPlayYaw(side == "left" and 0 or 180)
-                stopLazyAutoPlaySide(side)
-                return
-            end
-            local dir = Vector3.new(delta.X, 0, delta.Z).Unit
-            local speed = getLazyAutoPlaySpeed(true)
-            hum:Move(dir, false)
-            hrp.AssemblyLinearVelocity = Vector3.new(dir.X * speed, hrp.AssemblyLinearVelocity.Y, dir.Z * speed)
+        else
+            hrp.AssemblyLinearVelocity = Vector3.new(0, hrp.AssemblyLinearVelocity.Y, 0)
+            faceAutoPlayYaw(side == "left" and 0 or 180)
+            stopLazyAutoPlaySide(side)
         end
     end)
 
     if side == "left" then
-        lazyAutoPlayConnectionLeft = connection
+        zephronAutoPlayConnectionLeft = connection
     else
-        lazyAutoPlayConnectionRight = connection
+        zephronAutoPlayConnectionRight = connection
     end
 end
 
@@ -2275,22 +2229,26 @@ function startLaggerCounter()
         LaggerCounterSnapshot = {
             BoostSpeed = Values.BoostSpeed,
             StealingSpeedValue = Values.StealingSpeedValue,
-            StealPathSpeed = Values.StealPathSpeed,
-            StealPathReturnSpeed = Values.StealPathReturnSpeed,
+            AutoLeftSpeed = Values.AutoLeftSpeed,
+            AutoRightSpeed = Values.AutoRightSpeed,
+            AutoPlayReturnSpeed = Values.AutoPlayReturnSpeed,
             WalkSpeed = hum and hum.WalkSpeed or 16,
         }
     end
 
     Values.BoostSpeed = LAGGER_COUNTER_SPEED
     Values.StealingSpeedValue = LAGGER_COUNTER_SPEED
-    Values.StealPathSpeed = LAGGER_COUNTER_SPEED
-    Values.StealPathReturnSpeed = LAGGER_COUNTER_SPEED
+    Values.AutoLeftSpeed = LAGGER_COUNTER_SPEED
+    Values.AutoRightSpeed = LAGGER_COUNTER_SPEED
+    Values.AutoPlayReturnSpeed = LAGGER_COUNTER_SPEED
     STEAL_PATH_SECOND_SPEED = LAGGER_COUNTER_SPEED
     STEAL_PATH_VELOCITY_SPEED = LAGGER_COUNTER_SPEED
 
     refreshSliderValue("BoostSpeed")
     refreshSliderValue("StealingSpeedValue")
-    refreshSliderValue("StealPathSpeed")
+    refreshSliderValue("AutoLeftSpeed")
+    refreshSliderValue("AutoRightSpeed")
+    refreshSliderValue("AutoPlayReturnSpeed")
 
     if Connections.laggerCounter then
         Connections.laggerCounter:Disconnect()
@@ -2316,15 +2274,18 @@ function stopLaggerCounter()
     if snapshot then
         Values.BoostSpeed = snapshot.BoostSpeed or Values.BoostSpeed
         Values.StealingSpeedValue = snapshot.StealingSpeedValue or Values.StealingSpeedValue
-        Values.StealPathSpeed = snapshot.StealPathSpeed or Values.StealPathSpeed
-        Values.StealPathReturnSpeed = snapshot.StealPathReturnSpeed or Values.StealingSpeedValue
+        Values.AutoLeftSpeed = snapshot.AutoLeftSpeed or Values.AutoLeftSpeed
+        Values.AutoRightSpeed = snapshot.AutoRightSpeed or Values.AutoRightSpeed
+        Values.AutoPlayReturnSpeed = snapshot.AutoPlayReturnSpeed or Values.AutoPlayReturnSpeed
 
-        STEAL_PATH_SECOND_SPEED = Values.StealingSpeedValue
-        STEAL_PATH_VELOCITY_SPEED = Values.StealPathSpeed
+        STEAL_PATH_SECOND_SPEED = Values.AutoPlayReturnSpeed
+        STEAL_PATH_VELOCITY_SPEED = Values.AutoRightSpeed
 
         refreshSliderValue("BoostSpeed")
         refreshSliderValue("StealingSpeedValue")
-        refreshSliderValue("StealPathSpeed")
+        refreshSliderValue("AutoLeftSpeed")
+        refreshSliderValue("AutoRightSpeed")
+        refreshSliderValue("AutoPlayReturnSpeed")
 
         local hum = getCurrentHumanoid()
         if hum then
@@ -3197,7 +3158,9 @@ local function CreateSlider(parent, labelText, minVal, maxVal, valueKey, callbac
     local enforcedByLaggerCounter = {
         BoostSpeed = true,
         StealingSpeedValue = true,
-        StealPathSpeed = true,
+        AutoLeftSpeed = true,
+        AutoRightSpeed = true,
+        AutoPlayReturnSpeed = true,
     }
     local allowsDecimals = math.abs(minVal - math.floor(minVal)) > 0 or math.abs(maxVal - math.floor(maxVal)) > 0
     local container = Create("Frame", {
@@ -3654,8 +3617,6 @@ CreateToggle(ScrollFrame, "Speed While Stealing", "SpeedWhileStealing", function
 end, order) order += 1
 CreateSlider(ScrollFrame, "Steal Speed", 10, 35, "StealingSpeedValue", function(v)
     Values.StealingSpeedValue = v
-    Values.StealPathReturnSpeed = v
-    STEAL_PATH_SECOND_SPEED = v
 end, order) order += 1
 
 CreateSection(ScrollFrame, "COMBAT", order) order += 1
@@ -3856,22 +3817,20 @@ CreateToggle(MobileFrame, "Lock Mobile Buttons", "LockFloatPosition", function(s
     Enabled.LockFloatPosition = s
 end, order) order += 1
 
-CreateSection(AutoPlayFrame, "LAZY AUTO PLAY", order) order += 1
-CreateToggle(AutoPlayFrame, "Auto Right Play", "AutoRight", function(s)
-    Enabled.AutoRight = s
-    if s then
-        countdownPreferredSide = "right"
-        Enabled.AutoLeft = false
-        if VisualSetters.AutoLeft then VisualSetters.AutoLeft(false, true) end
-        if floatButtonReferences.AutoLeft then floatButtonReferences.AutoLeft(false) end
-        refreshAllBoxButtonStates()
-        stopStealPath()
-        startStealPath(stealPath_Right)
-    else
-        stopStealPath()
+CreateSection(AutoPlayFrame, "ZEPHRON AUTO PLAY", order) order += 1
+CreateSlider(AutoPlayFrame, "Auto Left Speed", 1, 100, "AutoLeftSpeed", function(v)
+    Values.AutoLeftSpeed = v
+    if Enabled.AutoLeft then
+        STEAL_PATH_VELOCITY_SPEED = v
     end
-end, order, "AUTORIGHT") order += 1
-CreateToggle(AutoPlayFrame, "Auto Left Play", "AutoLeft", function(s)
+end, order) order += 1
+CreateSlider(AutoPlayFrame, "Auto Right Speed", 1, 100, "AutoRightSpeed", function(v)
+    Values.AutoRightSpeed = v
+    if Enabled.AutoRight then
+        STEAL_PATH_VELOCITY_SPEED = v
+    end
+end, order) order += 1
+CreateToggle(AutoPlayFrame, "Auto Play Left Sequence", "AutoLeft", function(s)
     Enabled.AutoLeft = s
     if s then
         countdownPreferredSide = "left"
@@ -3885,258 +3844,34 @@ CreateToggle(AutoPlayFrame, "Auto Left Play", "AutoLeft", function(s)
         stopStealPath()
     end
 end, order, "AUTOLEFT") order += 1
+CreateToggle(AutoPlayFrame, "Auto Play Right Sequence", "AutoRight", function(s)
+    Enabled.AutoRight = s
+    if s then
+        countdownPreferredSide = "right"
+        Enabled.AutoLeft = false
+        if VisualSetters.AutoLeft then VisualSetters.AutoLeft(false, true) end
+        if floatButtonReferences.AutoLeft then floatButtonReferences.AutoLeft(false) end
+        refreshAllBoxButtonStates()
+        stopStealPath()
+        startStealPath(stealPath_Right)
+    else
+        stopStealPath()
+    end
+end, order, "AUTORIGHT") order += 1
+CreateSlider(AutoPlayFrame, "Base Exit Distance", 0, 30, "AutoPlayExitDist", function(v)
+    Values.AutoPlayExitDist = v
+end, order) order += 1
+CreateSlider(AutoPlayFrame, "Auto Play Return Speed", 1, 100, "AutoPlayReturnSpeed", function(v)
+    Values.AutoPlayReturnSpeed = v
+    STEAL_PATH_SECOND_SPEED = v
+end, order) order += 1
+CreateSlider(AutoPlayFrame, "Auto Play Wait (Secs)", 0.05, 10, "AutoPlayWaitTime", function(v)
+    Values.AutoPlayWaitTime = v
+end, order) order += 1
 CreateToggle(AutoPlayFrame, "Auto Play After Countdown", "CountdownAutoPlay", function(s)
     Enabled.CountdownAutoPlay = s
     countdownAutoEnabled = s
 end, order) order += 1
-CreateSlider(AutoPlayFrame, "Auto Play Speed", 20, 80, "StealPathSpeed", function(v)
-    Values.StealPathSpeed = v
-    STEAL_PATH_VELOCITY_SPEED = v
-end, order) order += 1
-CreateSlider(AutoPlayFrame, "Carry Return Speed", 10, 35, "StealPathReturnSpeed", function(v)
-    Values.StealPathReturnSpeed = v
-    Values.StealingSpeedValue = v
-    STEAL_PATH_SECOND_SPEED = v
-end, order) order += 1
-
-CreateSection(AutoPlayFrame, "WAYPOINT OFFSETS", order) order += 1
-
-local waypointDefinitions = {
-    { label = "Left WP1", group = "Left", idx = 1 },
-    { label = "Left WP2", group = "Left", idx = 2 },
-    { label = "Left WP3", group = "Left", idx = 3 },
-    { label = "Left WP4", group = "Left", idx = 4 },
-    { label = "Right WP1", group = "Right", idx = 1 },
-    { label = "Right WP2", group = "Right", idx = 2 },
-    { label = "Right WP3", group = "Right", idx = 3 },
-    { label = "Right WP4", group = "Right", idx = 4 },
-}
-
-local WAYPOINT_ROW_H = 44
-local WAYPOINT_BOX_W = 54
-local WAYPOINT_BOX_H = 22
-
-local function applyWaypointOffset(groupName, index, x, y, z)
-    wpOffsets[groupName][index] = Vector3.new(x or 0, y or 0, z or 0)
-    rebuildLazyWaypointPositions()
-    saveConfig()
-end
-
-local function applyWaypointAbsolutePosition(groupName, index, worldPosition)
-    local basePoint = lazyAutoPlayBaseWaypoints[groupName] and lazyAutoPlayBaseWaypoints[groupName][index]
-    if not basePoint or not worldPosition then return end
-    local offset = worldPosition - basePoint
-    applyWaypointOffset(groupName, index, offset.X, offset.Y, offset.Z)
-end
-
-local function CreateWaypointRow(parent, definition, rowOrder)
-    local row = Create("Frame", {
-        BackgroundColor3 = Color3.fromRGB(16, 18, 30),
-        Size = UDim2.new(1, -4, 0, WAYPOINT_ROW_H),
-        LayoutOrder = rowOrder,
-        BorderSizePixel = 0,
-        ZIndex = 6,
-        Parent = parent,
-    }, {
-        Create("UICorner", { CornerRadius = UDim.new(0, 10) }),
-        Create("UIStroke", { Color = Color3.fromRGB(43, 48, 72), Thickness = 1.4 }),
-    })
-
-    Create("TextLabel", {
-        BackgroundTransparency = 1,
-        Size = UDim2.new(0, 58, 1, 0),
-        Position = UDim2.new(0, 6, 0, 0),
-        Font = Enum.Font.GothamBold,
-        Text = definition.label,
-        TextColor3 = Color3.fromRGB(180, 190, 220),
-        TextSize = 9,
-        TextXAlignment = Enum.TextXAlignment.Left,
-        ZIndex = 7,
-        Parent = row,
-    })
-
-    local boxes = {}
-    local axisKeys = {"X", "Y", "Z"}
-
-    for axisIndex, axisLabel in ipairs(axisKeys) do
-        local xOffset = 72 + (axisIndex - 1) * (WAYPOINT_BOX_W + 4)
-
-        Create("TextLabel", {
-            BackgroundTransparency = 1,
-            Size = UDim2.new(0, WAYPOINT_BOX_W, 0, 12),
-            Position = UDim2.new(0, xOffset, 0, 3),
-            Font = Enum.Font.GothamBold,
-            Text = axisLabel,
-            TextColor3 = Color3.fromRGB(120, 130, 160),
-            TextSize = 8,
-            TextXAlignment = Enum.TextXAlignment.Center,
-            ZIndex = 7,
-            Parent = row,
-        })
-
-        local point = lazyAutoPlayWaypoints[definition.group][definition.idx] or Vector3.zero
-        local initialValue = axisIndex == 1 and point.X or (axisIndex == 2 and point.Y or point.Z)
-        local box = Create("TextBox", {
-            BackgroundColor3 = Color3.fromRGB(22, 25, 42),
-            Size = UDim2.new(0, WAYPOINT_BOX_W, 0, WAYPOINT_BOX_H),
-            Position = UDim2.new(0, xOffset, 0, 15),
-            Font = Enum.Font.GothamBold,
-            TextSize = 8,
-            TextColor3 = Color3.fromRGB(255, 255, 255),
-            Text = formatWaypointNumber(initialValue),
-            ClearTextOnFocus = false,
-            BorderSizePixel = 0,
-            ZIndex = 7,
-            Parent = row,
-        }, {
-            Create("UICorner", { CornerRadius = UDim.new(0, 5) }),
-            Create("UIStroke", { Color = PURPLE, Thickness = 1 }),
-        })
-
-        box.FocusLost:Connect(function()
-            local parsed = tonumber(box.Text)
-            local currentPoint = lazyAutoPlayWaypoints[definition.group][definition.idx] or Vector3.zero
-            if parsed then
-                local x = axisIndex == 1 and parsed or currentPoint.X
-                local y = axisIndex == 2 and parsed or currentPoint.Y
-                local z = axisIndex == 3 and parsed or currentPoint.Z
-                applyWaypointAbsolutePosition(definition.group, definition.idx, Vector3.new(x, y, z))
-                refreshWaypointEditorRows()
-            else
-                box.Text = formatWaypointNumber(axisIndex == 1 and currentPoint.X or (axisIndex == 2 and currentPoint.Y or currentPoint.Z))
-            end
-        end)
-
-        table.insert(boxes, box)
-    end
-
-    local resetButton = Create("TextButton", {
-        BackgroundColor3 = Color3.fromRGB(28, 32, 55),
-        Size = UDim2.new(0, 24, 0, WAYPOINT_BOX_H),
-        Position = UDim2.new(1, -28, 0, 15),
-        Font = Enum.Font.GothamBold,
-        Text = "R",
-        TextColor3 = SOFT_PINK,
-        TextSize = 11,
-        BorderSizePixel = 0,
-        AutoButtonColor = false,
-        ZIndex = 7,
-        Parent = row,
-    }, {
-        Create("UICorner", { CornerRadius = UDim.new(0, 5) }),
-        Create("UIStroke", { Color = PURPLE, Thickness = 1 }),
-    })
-
-    local pickButton = Create("TextButton", {
-        BackgroundColor3 = Color3.fromRGB(28, 32, 55),
-        Size = UDim2.new(0, 24, 0, WAYPOINT_BOX_H),
-        Position = UDim2.new(1, -56, 0, 15),
-        Font = Enum.Font.GothamBold,
-        Text = "P",
-        TextColor3 = SOFT_PINK,
-        TextSize = 11,
-        BorderSizePixel = 0,
-        AutoButtonColor = false,
-        ZIndex = 7,
-        Parent = row,
-    }, {
-        Create("UICorner", { CornerRadius = UDim.new(0, 5) }),
-        Create("UIStroke", { Color = PURPLE, Thickness = 1 }),
-    })
-
-    pickButton.MouseButton1Click:Connect(function()
-        local char = Player.Character
-        local root = char and char:FindFirstChild("HumanoidRootPart")
-        if not root then return end
-        applyWaypointAbsolutePosition(definition.group, definition.idx, root.Position)
-        refreshWaypointEditorRows()
-    end)
-    pickButton.MouseEnter:Connect(function()
-        TweenService:Create(pickButton, TweenInfo.new(0.1), { BackgroundColor3 = Color3.fromRGB(40, 55, 90) }):Play()
-    end)
-    pickButton.MouseLeave:Connect(function()
-        TweenService:Create(pickButton, TweenInfo.new(0.1), { BackgroundColor3 = Color3.fromRGB(28, 32, 55) }):Play()
-    end)
-
-    resetButton.MouseButton1Click:Connect(function()
-        applyWaypointOffset(definition.group, definition.idx, 0, 0, 0)
-        refreshWaypointEditorRows()
-    end)
-    resetButton.MouseEnter:Connect(function()
-        TweenService:Create(resetButton, TweenInfo.new(0.1), { BackgroundColor3 = Color3.fromRGB(40, 55, 90) }):Play()
-    end)
-    resetButton.MouseLeave:Connect(function()
-        TweenService:Create(resetButton, TweenInfo.new(0.1), { BackgroundColor3 = Color3.fromRGB(28, 32, 55) }):Play()
-    end)
-
-    table.insert(waypointRowBindings, {
-        group = definition.group,
-        idx = definition.idx,
-        boxes = boxes,
-    })
-
-    registerThemeCallback(function(themePalette)
-        syncThemeLocals(themePalette)
-        for _, box in ipairs(boxes) do
-            box.TextColor3 = Color3.fromRGB(255, 255, 255)
-            local stroke = box:FindFirstChildOfClass("UIStroke")
-            if stroke then
-                stroke.Color = PURPLE
-            end
-        end
-        pickButton.TextColor3 = SOFT_PINK
-        local pickStroke = pickButton:FindFirstChildOfClass("UIStroke")
-        if pickStroke then
-            pickStroke.Color = PURPLE
-        end
-        resetButton.TextColor3 = SOFT_PINK
-        local stroke = resetButton:FindFirstChildOfClass("UIStroke")
-        if stroke then
-            stroke.Color = PURPLE
-        end
-    end)
-
-    return row
-end
-
-for _, definition in ipairs(waypointDefinitions) do
-    CreateWaypointRow(AutoPlayFrame, definition, order)
-    order += 1
-end
-
-refreshWaypointEditorRows()
-
-local resetAllWaypointsRow = Create("Frame", {
-    BackgroundColor3 = Color3.fromRGB(16, 18, 30),
-    Size = UDim2.new(1, -4, 0, 28),
-    LayoutOrder = order,
-    BorderSizePixel = 0,
-    ZIndex = 6,
-    Parent = AutoPlayFrame,
-}, {
-    Create("UICorner", { CornerRadius = UDim.new(0, 8) }),
-    Create("UIStroke", { Color = Color3.fromRGB(43, 48, 72), Thickness = 1.4 }),
-})
-order += 1
-
-local resetAllWaypointsButton = Create("TextButton", {
-    Size = UDim2.new(1, 0, 1, 0),
-    BackgroundTransparency = 1,
-    Text = "Reset All Waypoints",
-    Font = Enum.Font.GothamBold,
-    TextSize = 10,
-    TextColor3 = SOFT_PINK,
-    ZIndex = 9,
-    Parent = resetAllWaypointsRow,
-})
-
-resetAllWaypointsButton.MouseButton1Click:Connect(function()
-    wpOffsets.Left = {Vector3.zero, Vector3.zero, Vector3.zero, Vector3.zero}
-    wpOffsets.Right = {Vector3.zero, Vector3.zero, Vector3.zero, Vector3.zero}
-    rebuildLazyWaypointPositions()
-    refreshWaypointEditorRows()
-    saveConfig()
-end)
 
 setMobileButtonsVisible = function(state)
     refreshAllBoxButtonStates()
@@ -4600,10 +4335,9 @@ local function applySavedState()
         startLaggerCounter()
     else
         stopLaggerCounter()
-        Values.StealPathReturnSpeed = Values.StealingSpeedValue
     end
-    STEAL_PATH_SECOND_SPEED = Values.StealPathReturnSpeed
-    STEAL_PATH_VELOCITY_SPEED = Values.StealPathSpeed
+    STEAL_PATH_SECOND_SPEED = Values.AutoPlayReturnSpeed
+    STEAL_PATH_VELOCITY_SPEED = Enabled.AutoRight and Values.AutoRightSpeed or Values.AutoLeftSpeed
 
     for key, setter in pairs(VisualSetters) do
         if setter then
