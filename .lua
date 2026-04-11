@@ -122,8 +122,8 @@ local countdownAutoEnabled = false
 local countdownAutoActive = false
 local countdownPreferredSide = "right"
 local wpOffsets = {
-    Left = {Vector3.zero, Vector3.zero, Vector3.zero},
-    Right = {Vector3.zero, Vector3.zero, Vector3.zero},
+    Left = {Vector3.zero, Vector3.zero, Vector3.zero, Vector3.zero},
+    Right = {Vector3.zero, Vector3.zero, Vector3.zero, Vector3.zero},
 }
 local waypointRowBindings = {}
 local THEME_PRESETS = {
@@ -2004,11 +2004,13 @@ local lazyAutoPlayWaypoints = {
     Left = {
         Vector3.new(-476.2, -6.5, 94.8),
         Vector3.new(-484.1, -4.7, 94.7),
+        Vector3.new(-476.2, -6.5, 94.8),
         Vector3.new(-476.5, -6.1, 7.5),
     },
     Right = {
         Vector3.new(-476.2, -6.1, 25.8),
         Vector3.new(-484.1, -4.7, 25.9),
+        Vector3.new(-476.2, -6.1, 25.8),
         Vector3.new(-476.2, -6.2, 113.5),
     },
 }
@@ -2016,11 +2018,13 @@ local lazyAutoPlayBaseWaypoints = {
     Left = {
         Vector3.new(-476.2, -6.5, 94.8),
         Vector3.new(-484.1, -4.7, 94.7),
+        Vector3.new(-476.2, -6.5, 94.8),
         Vector3.new(-476.5, -6.1, 7.5),
     },
     Right = {
         Vector3.new(-476.2, -6.1, 25.8),
         Vector3.new(-484.1, -4.7, 25.9),
+        Vector3.new(-476.2, -6.1, 25.8),
         Vector3.new(-476.2, -6.2, 113.5),
     },
 }
@@ -2239,7 +2243,7 @@ function startStealPath(path)
 
         local points = side == "left" and lazyAutoPlayWaypoints.Left or lazyAutoPlayWaypoints.Right
         local phase = side == "left" and lazyAutoPlayPhaseLeft or lazyAutoPlayPhaseRight
-        local targetIndex = phase == 4 and 3 or math.min(phase, 2)
+        local targetIndex = math.clamp(phase, 1, #points)
         local target = points[targetIndex]
         local planarTarget = Vector3.new(target.X, hrp.Position.Y, target.Z)
         local delta = planarTarget - hrp.Position
@@ -2289,14 +2293,12 @@ function startStealPath(path)
             hum:Move(dir, false)
             hrp.AssemblyLinearVelocity = Vector3.new(dir.X * speed, hrp.AssemblyLinearVelocity.Y, dir.Z * speed)
         elseif phase == 3 then
-            local returnTarget = points[1]
-            local returnDelta = Vector3.new(returnTarget.X, hrp.Position.Y, returnTarget.Z) - hrp.Position
-            if returnDelta.Magnitude < 1.5 then
+            if dist < 1.5 then
                 if side == "left" then lazyAutoPlayPhaseLeft = 4 else lazyAutoPlayPhaseRight = 4 end
                 updateStealPathProgress("RETURN", 0.75)
                 return
             end
-            local dir = Vector3.new(returnDelta.X, 0, returnDelta.Z).Unit
+            local dir = Vector3.new(delta.X, 0, delta.Z).Unit
             local speed = getLazyAutoPlaySpeed(true)
             hum:Move(dir, false)
             hrp.AssemblyLinearVelocity = Vector3.new(dir.X * speed, hrp.AssemblyLinearVelocity.Y, dir.Z * speed)
@@ -3988,9 +3990,11 @@ local waypointDefinitions = {
     { label = "Left WP1", group = "Left", idx = 1 },
     { label = "Left WP2", group = "Left", idx = 2 },
     { label = "Left WP3", group = "Left", idx = 3 },
+    { label = "Left WP4", group = "Left", idx = 4 },
     { label = "Right WP1", group = "Right", idx = 1 },
     { label = "Right WP2", group = "Right", idx = 2 },
     { label = "Right WP3", group = "Right", idx = 3 },
+    { label = "Right WP4", group = "Right", idx = 4 },
 }
 
 local WAYPOINT_ROW_H = 44
@@ -4212,8 +4216,8 @@ local resetAllWaypointsButton = Create("TextButton", {
 })
 
 resetAllWaypointsButton.MouseButton1Click:Connect(function()
-    wpOffsets.Left = {Vector3.zero, Vector3.zero, Vector3.zero}
-    wpOffsets.Right = {Vector3.zero, Vector3.zero, Vector3.zero}
+    wpOffsets.Left = {Vector3.zero, Vector3.zero, Vector3.zero, Vector3.zero}
+    wpOffsets.Right = {Vector3.zero, Vector3.zero, Vector3.zero, Vector3.zero}
     rebuildLazyWaypointPositions()
     refreshWaypointEditorRows()
     saveConfig()
